@@ -1,0 +1,21 @@
+{
+  "_comment": "注目レース・注目馬・注目コース。`/update-races` で races テーブルを最新化。race_id は netkeiba 形式（例: 202604030611 = 2026年4回東京6日11R）。",
+  "_format": {
+    "races": "監視対象レースの race_id 配列",
+    "horses": "監視対象馬の horse_id 配列（netkeiba の馬ID）",
+    "courses": "コース別注視リスト（例: tokyo-2400）。プレイブックのファイル名と一致させる",
+    "grade_focus": "重点グレード（GI/GII/GIII）"
+  },
+
+  "races": [],
+
+  "horses": [],
+
+  "courses": [
+    "tokyo-2400",
+    "nakayama-2500",
+    "kyoto-3200"
+  ],
+
+  "grade_focus": ["GI", "GII"]
+}

@@ -1,0 +1,18 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/fetch_races.py:*)",
+      "Bash(python scripts/fetch_results.py:*)",
+      "Bash(python scripts/fetch_pedigree.py:*)",
+      "Bash(python scripts/import_jravan_csv.py:*)",
+      "Bash(python scripts/db.py)",
+      "Bash(python -m scripts.*:*)",
+      "Bash(pip install -r requirements.txt)",
+      "Bash(sqlite3 data/race.db:*)"
+    ],
+    "deny": []
+  }
+}

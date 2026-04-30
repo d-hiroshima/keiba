@@ -1,0 +1,62 @@
+name: Update races (weekly)
+
+# 土曜朝 5:00 JST = 金曜 20:00 UTC に当日重賞情報を取得し、
+# 差分があれば自動 PR を立てる。Phase 1-2 では fetch_races.py が
+# まだスタブのため、scheduled run はあるが実際の取得は手動で行う想定。
+
+on:
+  schedule:
+    - cron: "0 20 * * 5"  # 金曜 20:00 UTC = 土曜 05:00 JST
+  workflow_dispatch:        # 手動トリガー可能
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fetch-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Init DB
+        run: python scripts/db.py
+
+      - name: Fetch watchlist races
+        run: |
+          python scripts/fetch_races.py --watchlist || true
+          python scripts/fetch_results.py --watchlist || true
+          python scripts/fetch_pedigree.py --watchlist || true
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create PR if changed
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: weekly races update"
+          branch: chore/weekly-races-${{ github.run_number }}
+          title: "chore: weekly races update"
+          body: |
+            Auto-generated PR by `update-races.yml`.
+
+            - Date (UTC): ${{ github.event.schedule || 'manual' }}
+            - Run: ${{ github.run_id }}

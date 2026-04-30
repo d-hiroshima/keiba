@@ -1,0 +1,19 @@
+version: "3.9"
+
+# ローカルで Slack bot を試すための compose 定義。
+# 本番（Cloud Run）デプロイは GitHub Actions の deploy-slack-bot.yml から。
+
+services:
+  slack-bot:
+    build:
+      context: ../..
+      dockerfile: slack-bot/deploy/Dockerfile
+    env_file:
+      - ../.env
+    volumes:
+      # ホストの DB をマウントして共用
+      - ../../data:/app/data
+      # 開発中はプロンプトをホットリロードしたいので bind mount
+      - ../../.claude/agents:/app/.claude/agents:ro
+      - ../../docs/playbooks:/app/docs/playbooks:ro
+    restart: unless-stopped

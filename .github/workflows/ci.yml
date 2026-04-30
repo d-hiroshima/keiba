@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r slack-bot/requirements.txt
+          pip install ruff pytest
+
+      - name: Lint (ruff)
+        run: ruff check scripts slack-bot
+
+      - name: Init DB schema (smoke test)
+        run: python scripts/db.py
+
+      - name: Verify agent prompt loader
+        run: |
+          cd slack-bot
+          PYTHONPATH=. python -m prompts.load_agent_prompt

@@ -1,0 +1,63 @@
+name: Deploy slack-bot
+
+# slack-bot/, .claude/agents/, docs/playbooks/, scripts/ のいずれかに変更が入ったら
+# Cloud Run にデプロイ。設計のキモ「プロンプト一元管理」を維持するため、
+# .claude/agents の変更でも再デプロイする。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "slack-bot/**"
+      - ".claude/agents/**"
+      - "docs/playbooks/**"
+      - "scripts/**"
+      - ".github/workflows/deploy-slack-bot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # Workload Identity Federation 用
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      SERVICE_NAME: keiba-slack-bot
+      ARTIFACT_REPO: ${{ vars.ARTIFACT_REPO }}   # 例: asia-northeast1-docker.pkg.dev/<proj>/keiba
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Build & push image (SHA pin)
+        run: |
+          IMAGE="${ARTIFACT_REPO}/${SERVICE_NAME}:${GITHUB_SHA}"
+          docker build -f slack-bot/deploy/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE" \
+            --region "$GCP_REGION" \
+            --project "$GCP_PROJECT" \
+            --no-allow-unauthenticated \
+            --min-instances 1 \
+            --max-instances 1 \
+            --cpu 1 \
+            --memory 512Mi \
+            --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,SLACK_BOT_TOKEN=slack-bot-token:latest,SLACK_APP_TOKEN=slack-app-token:latest,SLACK_SIGNING_SECRET=slack-signing-secret:latest
