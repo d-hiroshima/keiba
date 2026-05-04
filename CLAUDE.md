@@ -36,7 +36,7 @@ watchlist.json       # 注目レース・注目馬・注目コース
 | Agent | 役割 |
 |---|---|
 | `pedigree-analyst` | 血統・産駒傾向・配合適性 |
-| `track-analyst` | コース適性・距離・脚質・馬場状態 |
+| `track-analyst` | コース適性・距離・脚質・馬場状態・**騎手/厩舎実績** |
 | `race-context-analyst` | レースグレード・出走馬レベル・ペース予想・展開 |
 | `devils-advocate` | **反対役・本命崩しの穴党・毎回必須** |
 | `macro-scout` | 天候・馬場・調教師コメント・直前情報（WebFetch、`/recommend` で起動） |
