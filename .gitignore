@@ -24,4 +24,5 @@ slack-bot/*.log
 
 # 個別の作業ノート・予算メモ（共有不要）
 notes_local/
-watchlist.local.json
+# watchlist は廃止（対象は都度プロンプト/引数で指定）。誤って再作成しても公開しない
+watchlist*.json

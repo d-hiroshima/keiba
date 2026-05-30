@@ -1,5 +1,5 @@
 ---
-description: 個別レースを多視点で予想する。例: /analyze 202604030611 / /analyze 202604030611 --full / /analyze --horse 2020100789
+description: 個別レースを多視点で予想する。例: /analyze 202605030811 / /analyze 202605030811 --full / /analyze --horse 2020103060
 ---
 
 `analyze-race` スキルに従って、引数で渡された race_id を予想してください。

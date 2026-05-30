@@ -145,22 +145,32 @@ def connect():
 
 
 def parse_race_id(race_id: str) -> dict:
-    """netkeiba 形式の race_id を分解。
+    """race_id を分解（keibalab 形式 = 日付ベース）。
 
-    例: '202604030611' →
-        {year: 2026, course_code: '04', course_no: 03, day_no: 06, race_no: 11}
+    本プロジェクトの正規 race_id は keibalab のデータベース URL に一致する
+    日付ベース形式: ``YYYYMMDD + 場コード(2) + R(2)``（計 12 桁）。
+    netkeiba の ``年+場+回+日+R`` 形式とは別物（相互変換にはカレンダー照合が要る）。
+
+    例: '202605030811' →
+        {date: '2026-05-03', year: 2026, course_code: '08',
+         course: 'kyoto', race_no: 11}
+
+    開催回(course_no)・何日目(day_no) は race_id に含まれないため、
+    取得元ページの本文から補完する（fetcher 側で埋める）。
 
     course_code:
         01=札幌, 02=函館, 03=福島, 04=新潟, 05=東京,
-        06=中山, 07=中京, 08=京都, 09=阪神, 10=小倉
+        06=中山, 07=中京, 08=京都, 09=阪神, 10=小倉（地方/海外は範囲外）
     """
     if len(race_id) != 12 or not race_id.isdigit():
         raise ValueError(f"invalid race_id: {race_id} (expected 12 digits)")
+    y, m, d = int(race_id[:4]), int(race_id[4:6]), int(race_id[6:8])
+    course_code = race_id[8:10]
     return {
-        "year": int(race_id[:4]),
-        "course_code": race_id[4:6],
-        "course_no": int(race_id[6:8]),
-        "day_no": int(race_id[8:10]),
+        "date": f"{y:04d}-{m:02d}-{d:02d}",
+        "year": y,
+        "course_code": course_code,
+        "course": course_code_to_name(course_code),
         "race_no": int(race_id[10:12]),
     }
 

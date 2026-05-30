@@ -1,20 +1,25 @@
-name: Update races (weekly)
+name: Update races (manual)
 
-# 土曜朝 5:00 JST = 金曜 20:00 UTC に当日重賞情報を取得し、
-# 差分があれば自動 PR を立てる。Phase 1-2 では fetch_races.py が
-# まだスタブのため、scheduled run はあるが実際の取得は手動で行う想定。
+# watchlist 廃止に伴い、固定リストの定時取得バッチは廃止した。
+# 取得対象は手動 dispatch 時に race_ids 入力で都度指定する。
+# data/race.db は gitignore のため PR ではなく artifact として出力する。
+#
+# 注: 「PCオフの土曜朝バッチ」を続けるなら、取得対象レースの決め方
+#     （当日重賞の自動判定 等）を別途設計する必要がある（現状は手動指定）。
 
 on:
-  schedule:
-    - cron: "0 20 * * 5"  # 金曜 20:00 UTC = 土曜 05:00 JST
-  workflow_dispatch:        # 手動トリガー可能
+  workflow_dispatch:
+    inputs:
+      race_ids:
+        description: "取得する race_id（スペース区切り。keibalab 日付ベース 12桁 例: 202605030811）"
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
-  fetch-and-pr:
+  fetch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,30 +38,14 @@ jobs:
       - name: Init DB
         run: python scripts/db.py
 
-      - name: Fetch watchlist races
+      - name: Fetch specified races
         run: |
-          python scripts/fetch_races.py --watchlist || true
-          python scripts/fetch_results.py --watchlist || true
-          python scripts/fetch_pedigree.py --watchlist || true
+          python scripts/fetch_races.py ${{ inputs.race_ids }}
+          python scripts/fetch_results.py ${{ inputs.race_ids }}
 
-      - name: Detect changes
-        id: diff
-        run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create PR if changed
-        if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+      - name: Upload populated DB as artifact
+        uses: actions/upload-artifact@v4
         with:
-          commit-message: "chore: weekly races update"
-          branch: chore/weekly-races-${{ github.run_number }}
-          title: "chore: weekly races update"
-          body: |
-            Auto-generated PR by `update-races.yml`.
-
-            - Date (UTC): ${{ github.event.schedule || 'manual' }}
-            - Run: ${{ github.run_id }}
+          name: race-db
+          path: data/race.db
+          retention-days: 7

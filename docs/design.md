@@ -110,11 +110,10 @@ keiba/
 │   ├── requirements.txt
 │   └── README.md
 ├── requirements.txt                   # A 用（scripts/ から叩く）
-├── watchlist.json                     # 注目馬・注目レース
 └── .github/
     └── workflows/
         ├── deploy-slack-bot.yml       # B のデプロイ
-        ├── update-races.yml           # 土曜朝の出走情報取得 → 自動 PR
+        ├── update-races.yml           # 指定レースのデータ取得（手動 dispatch）→ 自動 PR
         └── ci.yml                     # 共通 lint/test
 ```
 
@@ -160,7 +159,7 @@ kabu の 3 モード構成を踏襲。
 | `/debate <race-id>` | Agent Teams による多視点議論 | 中（×3-5）|
 | `/recommend` | 当日／週末の「買うべきレース」Top 3-5 提案 | 重（×5-10）|
 | `/recommend --budget=3000 --type=wide` | ワイド予算戦略付き | 重 |
-| `/update-races` | watchlist.json のレース情報一括更新 | 軽 |
+| `/update-races <race_id>...` | 指定したレース／馬のデータ最新化 | 軽 |
 
 ワイド戦略は `--budget` と `--points`（点数）と `--ev-threshold`（期待値しきい値）を引数化。
 
@@ -219,9 +218,9 @@ kabu のプレイブックと同様、`docs/playbooks/` に重量資料を蓄積
 
 ## 9. セキュリティ・プライバシー
 
-- `data/race.db`、`watchlist.json` の予算情報は gitignore
+- `data/race.db`・`data/cache/` は gitignore（追跡対象・取得データを公開リポジトリに残さない）。**watchlist は廃止**し、分析対象は都度プロンプトで指定する
 - Slack bot の API キー・Anthropic API キーは Secret Manager / GitHub Secrets で管理
-- netkeiba スクレイピングは個人利用範囲、データ再配布はしない
+- keibalab スクレイピングは個人利用範囲・低レート・データ再配布はしない（独自指標 α/β/Ω指数 は保存しない）
 
 ---
 
