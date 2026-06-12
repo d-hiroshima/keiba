@@ -1,5 +1,9 @@
 # keiba プロジェクト設計ドキュメント
 
+> ⚠️ **本文書は 2026-05 時点の初期設計（歴史資料）**。現行の正は `CLAUDE.md` と
+> `docs/output-schema.md` / `docs/db-schema.md`。特にデータソースは **keibalab.jp が正**
+> （本文中の「netkeiba 第一候補」は初期検討時の記述。経緯は memory: data-source-decision）。
+>
 > このドキュメントは Claude.ai 上での設計議論の結論をまとめた **handoff ドキュメント** です。
 > Claude Code はこのファイルを context として読み、`keiba/` リポジトリの初期構築を進めてください。
 > 既存の `d-hiroshima/kabu` リポジトリを雛形として強く参考にすることを前提とします。
@@ -86,7 +90,7 @@ keiba/
 │       └── wide-strategy.md           # ワイド予算戦略の方法論
 ├── scripts/                           # === A・B 共用のデータ層 ===
 │   ├── db.py                          # SQLite スキーマ
-│   ├── fetch_races.py                 # 出走表取得（netkeiba or JRA-VAN）
+│   ├── fetch_races.py                 # 出走表取得（keibalab。馬柱/結果ページ自動分岐）
 │   ├── fetch_results.py               # レース結果取得
 │   ├── fetch_pedigree.py              # 血統情報取得
 │   └── import_jravan_csv.py           # JRA-VAN Data Lab CSV 取り込み（任意）
@@ -167,7 +171,10 @@ kabu の 3 モード構成を踏襲。
 
 ## 6. データソース
 
-**第一候補：netkeiba スクレイピング**
+> **採用済み（2026-05 決定）: keibalab.jp スクレイピング**（`scripts/keibalab.py`）。
+> 以下の「netkeiba 第一候補」は初期検討時の記述として残す。
+
+**初期検討時の第一候補：netkeiba スクレイピング**
 - 出走表、過去戦績、血統、調教情報
 - 規約・robots.txt の確認必須
 - 取得頻度に注意（rate limit）
@@ -238,7 +245,7 @@ kabu のプレイブックと同様、`docs/playbooks/` に重量資料を蓄積
 ### Phase 1: A の MVP（kabu 模写）
 1. kabu の `.claude/` 構成をコピーして競馬ドメインに翻訳
 2. `pedigree-analyst` と `devils-advocate` だけで `/analyze` を動かす
-3. `scripts/fetch_races.py` で netkeiba から 1 レース分取得できるようにする
+3. `scripts/fetch_races.py` で 1 レース分取得できるようにする（実装は keibalab.jp）
 4. SQLite スキーマと `db.py` を整備
 
 ### Phase 2: A の拡充
@@ -262,7 +269,7 @@ kabu のプレイブックと同様、`docs/playbooks/` に重量資料を蓄積
 
 ## 12. 未決事項・要相談
 
-- [ ] netkeiba スクレイピング vs JRA-VAN のどちらをメインにするか（コストと安定性のトレードオフ）
+- [x] スクレイピング vs JRA-VAN → **keibalab.jp スクレイピングをメインに採用**（無料・/db/ robots 許可・日付ベース race_id。JRA-VAN CSV は併用パスとしてスタブのみ）
 - [ ] Slack bot のチャンネル設計（DM 専用？ 公開チャンネル併用？）
 - [ ] `/recommend` の評価関数（期待値ベース or 確信度ベース or 複合）
 - [ ] 過去レース結果の蓄積範囲（直近 3 年？ 5 年？）

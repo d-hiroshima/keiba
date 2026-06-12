@@ -25,10 +25,26 @@ jobs:
           pip install ruff pytest
 
       - name: Lint (ruff)
-        run: ruff check scripts slack-bot
+        run: ruff check scripts slack-bot tests
 
       - name: Init DB schema (smoke test)
         run: python scripts/db.py
+
+      - name: Tests (parsers / validator / scoring)
+        run: python -m pytest tests/ -v
+
+      - name: Schema doc drift check
+        run: |
+          python scripts/db.py schema-doc > /tmp/db-schema.md
+          diff -u docs/db-schema.md /tmp/db-schema.md \
+            || (echo "::error::docs/db-schema.md が古い。'python3 scripts/db.py schema-doc > docs/db-schema.md' で再生成してコミット" && exit 1)
+
+      - name: Playbook placeholder check
+        run: |
+          if grep -rl '<YYYY-MM>' docs/playbooks/; then
+            echo "::error::最終更新が <YYYY-MM> プレースホルダのままのプレイブックがある"
+            exit 1
+          fi
 
       - name: Verify agent prompt loader
         run: |

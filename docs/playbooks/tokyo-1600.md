@@ -23,9 +23,9 @@
 | 4角通過順 | results.passing_order / corner_position | 直線が長いため中団（5〜9番手）からでも届く。後方一気は展開待ち |
 | 走破時計 | results.finish_time | 良馬場のマイルGIで 1:31 前後が高速決着の目安。1:32 台は標準 |
 | 着差 | results.margin | 直線が長く力差が出やすい → 接戦より明確な差で勝った馬を信頼 |
-| 同コース成績 | results（race_id 先頭から東京判定） | 東京マイル重賞で連対歴は強力な裏付け |
+| 同コース成績 | `results` × `races` を JOIN し `course='tokyo' AND distance=1600` で絞る（**race_id から距離は判定不能**） | 東京マイル重賞で連対歴は強力な裏付け |
 
-> 出所カラムは `data/race.db` の `results` 実在カラム（`finish_position` / `finish_time` / `margin` / `last_3f` / `last_3f_rank` / `passing_order` / `corner_position`）に対応。ラップの前後半分解は netkeiba レース結果から都度参照。
+> 出所カラムは `data/race.db` の実在カラム（正は `docs/db-schema.md`）。レースのペース文脈は `races.pace_front_3f` / `pace_last_3f` / `pace_class` に保存済み（keibalab 結果ページ・戦績表由来）。
 
 ### 定性
 - **騎手のコース巧拙**: 東京マイルは「直線のどこで仕掛けるか」が鍵。早仕掛けは坂で止まり、遅すぎると間に合わない。当該コース実績の高い騎手を加点。

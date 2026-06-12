@@ -36,7 +36,7 @@ async def analyze_race(race_id: str, *, full: bool = False) -> dict[str, Any]:
     """A 形態の `/analyze` を Slack bot から呼ぶ版。
 
     Args:
-        race_id: netkeiba 形式の race_id
+        race_id: keibalab 日付ベース 12桁の race_id（YYYYMMDD+場+R）
         full: True なら 5 エージェント全員、False ならデフォルト構成
 
     Returns:
@@ -44,9 +44,12 @@ async def analyze_race(race_id: str, *, full: bool = False) -> dict[str, Any]:
     """
     input_data = await _prepare(race_id)
 
-    primary_agents = [pedigree, track, race_context]
+    # analyze-race.md ステップ2と同じ編成:
+    #   デフォルト = pedigree + macro_scout（揮発データ担当・毎回必須）
+    #   full      = track / race_context も追加
+    primary_agents = [pedigree, macro_scout]
     if full:
-        primary_agents.append(macro_scout)
+        primary_agents += [track, race_context]
 
     primary_results = await asyncio.gather(
         *[asyncio.to_thread(a.run, input_data) for a in primary_agents],

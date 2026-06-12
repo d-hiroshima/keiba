@@ -1,11 +1,15 @@
 """JRA-VAN Data Lab から手動エクスポートした CSV を取り込む。
 
-JRA-VAN Data Lab は有料だがデータ品質・安定性が段違い。
-netkeiba スクレイピングの代替・補完として設計。
+⚠️ **未実装スタブ**。CSV のカラム構成はエクスポート元ツール（TARGET 等）に依存するため、
+初回の実 CSV を取得した時点でヘッダ → DB カラムのマッピングを確定して実装する
+（推測でマッピングすると静かに誤データが入るため、それまでは取り込まずエラー終了する）。
 
-使用例:
-  python scripts/import_jravan_csv.py data/jravan/race_202604.csv
-  python scripts/import_jravan_csv.py data/jravan/results_202604.csv --kind results
+位置づけ: keibalab スクレイピングの補完。規約クリーンな一括バックフィル
+（過去重賞の大量蓄積）が必要になったらこの経路を使う。
+
+使用例（実装後）:
+  python3 scripts/import_jravan_csv.py data/jravan/race_202604.csv
+  python3 scripts/import_jravan_csv.py data/jravan/results_202604.csv --kind results
 """
 
 from __future__ import annotations
@@ -44,8 +48,10 @@ def import_csv(path: Path, kind: str) -> int:
     if not path.exists():
         raise FileNotFoundError(path)
 
-    print(f"  [todo] {path.name} ({kind}): JRA-VAN CSV スキーマ未確定。初回エクスポート後に実装")
-    return 0
+    raise NotImplementedError(
+        f"{path.name} ({kind}): JRA-VAN CSV のマッピングは未実装（スタブ）。"
+        "初回エクスポートのヘッダを確認してから実装する — 黙って 0 行取り込み成功に見せない"
+    )
 
 
 def main() -> None:
@@ -57,18 +63,23 @@ def main() -> None:
     init_db()
 
     total = 0
+    failures = 0
     for p in args.paths:
         path = Path(p)
         kind = detect_kind(path) if args.kind == "auto" else args.kind
         if kind == "unknown":
-            print(f"  [warn] {path.name}: 種別が判定できず、--kind を指定してください")
+            failures += 1
+            print(f"  [err]  {path.name}: 種別が判定できず、--kind を指定してください")
             continue
         try:
             total += import_csv(path, kind)
         except Exception as e:  # noqa: BLE001
+            failures += 1
             print(f"  [err]  {path.name}: {e}")
 
-    print(f"完了: {len(args.paths)} ファイル、{total} 行")
+    print(f"完了: {len(args.paths)} ファイル、{total} 行 / 失敗 {failures}")
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

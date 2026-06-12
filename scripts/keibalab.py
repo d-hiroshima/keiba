@@ -628,17 +628,22 @@ def fetch_race_card(race_id: str, max_age_hours: float = 12.0, force: bool = Fal
         raise ParseError(f"{race_id}: 馬柱テーブル（megamoriTable）が見つからない")
 
     rows = (mega.find("tbody") or mega).find_all("tr", recursive=False)
-    # 最終セルがラベル（'枠番','馬番','騎手'...）。ラベル→セル列 のマップを作る
+    # 最終セルがラベル（'枠番','馬番','騎手'...）。ラベル→セル列 のマップを作る。
+    # 列数は先頭のラベル行（枠番行）に合わせ、セル数の合わない行（予想印等）はスキップする
     label_cells: dict[str, list] = {}
-    n_cols = None
+    n_expected = None
     for tr in rows:
         cells = tr.find_all(["th", "td"], recursive=False)
-        if len(cells) < 10:
-            continue  # 予想印などの不揃い行はスキップ
+        if len(cells) < 3:
+            continue
+        if n_expected is None:
+            n_expected = len(cells)
+        if len(cells) != n_expected:
+            continue  # 予想印などの不揃い行
         label = re.sub(r"\s", "", cells[-1].get_text(" ", strip=True))
         if label and label not in label_cells:
             label_cells[label] = cells[:-1]
-            n_cols = n_cols or len(cells) - 1
+    n_cols = (n_expected - 1) if n_expected else 0
 
     def col_texts(label_key: str) -> list[str | None]:
         for label, cells in label_cells.items():
