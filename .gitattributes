@@ -1,0 +1,7 @@
+# WSL(LF) と Windows(CRLF) の併用で diff が改行だけで膨れるのを防ぐ。
+# リポジトリ内は常に LF。バイナリは変換対象外。
+* text=auto eol=lf
+*.db binary
+*.sqlite binary
+*.png binary
+*.jpg binary

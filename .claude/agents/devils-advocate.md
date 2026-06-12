@@ -61,6 +61,8 @@ tools: Read, Grep, Glob, Bash, WebFetch
 
 # 出力フォーマット（必須）
 
+> 共通の出力スキーマは **`docs/output-schema.md` §3.5** を正とする。本セクションは具体例。スキーマと相違が出た場合はスキーマ側を優先。
+
 ```
 ## devils-advocate — race: <race_id>
 

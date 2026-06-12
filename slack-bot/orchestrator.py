@@ -7,14 +7,29 @@ Claude Code の Agent Teams は API でそのまま使えないため、
 - A 形態の `.claude/skills/analyze-race.md` と同じステップに従う
 - pedigree / track / race_context は asyncio.gather で並列実行
 - devils_advocate は **必ず最後** に呼ぶ（kabu の思想を継承）
+- 各エージェント結果は `scripts/validate_output.validate` でスキーマ検証する
+  （`docs/output-schema.md` 準拠。違反は SCHEMA_VIOLATION ログ）
 """
 
 from __future__ import annotations
 
 import asyncio
+import sys
+from pathlib import Path
 from typing import Any
 
 from agents import devils_advocate, macro_scout, pedigree, race_context, track
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from validate_output import validate as validate_schema  # noqa: E402
+
+AGENT_TYPE_MAP = {
+    "pedigree": "pedigree",
+    "track": "track",
+    "race_context": "race-context",
+    "macro_scout": "macro-scout",
+    "devils_advocate": "devils",
+}
 
 
 async def analyze_race(race_id: str, *, full: bool = False) -> dict[str, Any]:
@@ -38,10 +53,35 @@ async def analyze_race(race_id: str, *, full: bool = False) -> dict[str, Any]:
         return_exceptions=True,
     )
 
+    for agent, result in zip(primary_agents, primary_results):
+        _validate_agent_output(agent.__name__, result)
+
     critic_input = {**input_data, "prior_results": primary_results}
     critic_result = await asyncio.to_thread(devils_advocate.run, critic_input)
+    _validate_agent_output("devils_advocate", critic_result)
 
     return _integrate(input_data, primary_results, critic_result)
+
+
+def _validate_agent_output(agent_module_name: str, result: Any) -> None:
+    """各エージェントの Markdown 出力を `docs/output-schema.md` で検証。
+
+    違反は SCHEMA_VIOLATION ログを残すが、現状は処理を止めない（Phase 3 で
+    再依頼ロジックを足す予定）。
+    """
+    if isinstance(result, Exception):
+        return  # gather 例外は別ハンドラで処理
+    text = result if isinstance(result, str) else result.get("markdown", "")
+    if not text:
+        return
+
+    short_name = agent_module_name.rsplit(".", 1)[-1]
+    target_type = AGENT_TYPE_MAP.get(short_name)
+    validation = validate_schema(text, target_type)
+    if not validation.ok:
+        for v in validation.violations:
+            if v.severity == "error":
+                print(f"SCHEMA_VIOLATION [{short_name}] {v.message}")
 
 
 async def _prepare(race_id: str) -> dict[str, Any]:

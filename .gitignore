@@ -16,6 +16,8 @@ data/race.db-wal
 data/race.db-shm
 data/jravan/*.csv
 data/cache/
+# 1レース分のスクレイプ・ダンプ（例: derby2026.json）。生成物なので追跡しない
+data/*.json
 
 # Slack bot のローカル開発成果物
 slack-bot/.env
