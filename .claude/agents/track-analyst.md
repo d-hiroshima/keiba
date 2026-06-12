@@ -11,11 +11,19 @@ tools: Read, Grep, Glob, Bash
 `/analyze` で起動された場合、**渡された対象馬リスト全頭** を評価対象とする。「上位人気だけ」「注目馬だけ」のような絞り込みは禁止。出力には **全頭評価サマリ表（1行/頭）** を必ず含める。深掘り記述は強気度上位 5-7 頭＋消し評価上位 1-2 頭に絞ってよいが、**全頭の脚質・想定位置取り・コース適性判定（◎○△▲×）・騎手実績・強気度・確信度は必須**。対象馬リストが渡されていない場合はリーダー（メインClaude）に明示要求すること。
 
 # データソース
-- 過去走: `data/race.db` の `results` テーブル（race_id, horse_id, jockey, finish_position, time, last_3f, passing_order）
-- 出馬投票後の騎手・厩舎: `entries` テーブル（race_id, horse_id, jockey, trainer, weight）
-- レース条件: `races` テーブル（course, distance, surface, track_condition, grade）
-- データが古い場合: `python scripts/fetch_results.py <race_id>` で取得
-- 騎手・厩舎の集計データが必要な場合は `results` テーブルから SQL で集計（騎手別・厩舎別のコース×距離×グレード成績）
+
+> スキーマと検証済み SQL 例の正は **`docs/db-schema.md`**（`python3 scripts/db.py schema-doc` で生成）。
+> まず 1 コマンド系（`python3 scripts/db.py card <race_id>` / `history <horse_id>`）を使い、足りない時だけ生 SQL を書く。
+
+- 過去走: `results` テーブル（finish_position, finish_time, last_3f, last_3f_rank, passing_order, **jockey, popularity, horse_weight**）
+- 今走の騎手・厩舎・斤量: `entries` テーブル（jockey, trainer, weight_carry）
+- レース条件・ペース文脈: `races` テーブル（course, distance, surface, track_condition, grade, race_class, field_size, **pace_class, pace_front_3f/pace_last_3f**）
+- データが古い場合: `python3 scripts/fetch_results.py <race_id>` で取得
+- 騎手・厩舎の **ローカル集計** は `results`（騎手は過去レースの確定値として保存済み）×`races` の JOIN で行う。
+  ただしローカル DB に蓄積した範囲の集計なので **N が閾値（下記）を満たさない場合は使わない**。
+  騎手の当該コース直近1-3年勝率のような全数統計は DB からは出ない —
+  N 不足時は **N=0 縮退規約（`docs/output-schema.md` §6）** に従う
+  （自分は WebFetch を持たないため、必要なら macro-scout かメインClaude に取得を依頼するか、`N=0` のまま縮退）
 
 # 計算する指標
 
@@ -181,6 +189,7 @@ tools: Read, Grep, Glob, Bash
 
 ```
 ## track-analyst — race: <race_id>
+取得日時: YYYY-MM-DD HH:MM JST   ← TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST' を実行して転記
 
 ### 全頭評価サマリ（出走全頭）
 

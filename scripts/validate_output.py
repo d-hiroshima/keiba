@@ -62,16 +62,18 @@ REQUIRED_SECTIONS: dict[str, list[str]] = {
 }
 
 REQUIRED_COLUMNS: dict[str, list[str]] = {
-    "pedigree": ["馬番", "馬名", "父", "母父", "強気度", "確信度", "キー論点"],
+    "pedigree": [
+        "馬番", "馬名", "父", "母父", "同条件父系勝率", "強気度", "確信度", "キー論点",
+    ],
     "track": [
-        "馬番", "馬名", "持ち時計", "想定脚質", "想定位置取り",
-        "コース適性", "騎手", "強気度", "確信度",
+        "馬番", "馬名", "同条件勝率", "持ち時計", "想定脚質", "想定位置取り",
+        "コース適性", "騎手", "騎手当該コース勝率", "コンビ/乗替", "強気度", "確信度",
     ],
     "race-context": [
         "馬番", "馬名", "想定脚質", "想定位置取り",
         "展開恩恵度", "強気度", "確信度",
     ],
-    "macro-scout": ["馬番", "馬名", "単勝", "人気"],
+    "macro-scout": ["馬番", "馬名", "単勝", "人気", "前日比"],
     "devils": ["馬番", "馬名", "devils 補正", "補正理由"],
     "integrated": [
         "馬番", "馬名", "想定人気", "pedigree", "track",
@@ -104,8 +106,8 @@ class ValidationResult:
 
 
 def detect_type(text: str) -> str | None:
-    """ヘッダ `## <agent> — race:` または `# レース予想:` から型を判別。"""
-    m = re.search(r"^##\s+([a-z\-]+)\s*—\s*race:", text, re.MULTILINE)
+    """ヘッダ `## <agent> — race(s):` または `# レース予想:` から型を判別。"""
+    m = re.search(r"^##\s+([a-z\-]+)\s*[—\-–]+\s*races?:", text, re.MULTILINE)
     if m:
         name = m.group(1)
         if name == "pedigree-analyst":
@@ -150,19 +152,58 @@ def _check_table_columns(text: str, required: list[str]) -> list[Violation]:
     return out
 
 
-def _check_value_ranges(text: str) -> list[Violation]:
-    """強気度・確信度・選定記号の値域を表セルから抜きとって確認。"""
-    out: list[Violation] = []
-
-    # 強気度: -5..+5（表セル内に出る数字を緩く拾う）
-    bullish_matches = re.findall(r"(?<![0-9])([+\-]?\d+)\s*\|", text)
-    for v in bullish_matches:
-        try:
-            n = int(v)
-        except ValueError:
+def _iter_tables(text: str):
+    """Markdown 表を (ヘッダ列リスト, データ行リスト) で列挙する。"""
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        is_header = (
+            line.startswith("|")
+            and i + 1 < len(lines)
+            and re.match(r"^\s*\|[\s:\-|]+\|\s*$", lines[i + 1])
+        )
+        if not is_header:
+            i += 1
             continue
-        if -10 <= n <= 10 and not (-5 <= n <= 5):
-            out.append(Violation("warn", f"強気度らしき値が値域外: {n}（-5〜+5）"))
+        header = [h.strip() for h in line.strip("|").split("|")]
+        rows: list[list[str]] = []
+        j = i + 2
+        while j < len(lines) and lines[j].strip().startswith("|"):
+            rows.append([c.strip() for c in lines[j].strip().strip("|").split("|")])
+            j += 1
+        yield header, rows
+        i = j
+
+
+# 強気度系の値（-5〜+5）を持つカラム名。位置を特定してそのセルだけ検査する
+# （旧実装は表中の全数値を拾い、馬番 6-10 を強気度と誤認する偽陽性があった）
+_BULLISH_COLUMNS = (
+    "強気度", "devils 補正", "総合", "pedigree", "track", "race-context", "devils",
+)
+
+
+def _cell_int(cell: str) -> int | None:
+    m = re.fullmatch(r"\*{0,2}([+\-±]?\d+)\*{0,2}", cell.strip())
+    return int(m.group(1).replace("±", "")) if m else None
+
+
+def _check_value_ranges(text: str) -> list[Violation]:
+    """強気度・確信度・選定記号の値域を、カラム位置を特定した上で確認。"""
+    out: list[Violation] = []
+    for header, rows in _iter_tables(text):
+        bull_idx = [
+            i for i, h in enumerate(header)
+            if any(h == c or h.startswith(c + "（") for c in _BULLISH_COLUMNS)
+        ]
+        conf_idx = [i for i, h in enumerate(header) if h.startswith("確信度")]
+        for row in rows:
+            for i in bull_idx:
+                if i < len(row) and (n := _cell_int(row[i])) is not None and not -5 <= n <= 5:
+                    out.append(Violation("warn", f"強気度らしき値が値域外: {n}（-5〜+5）"))
+            for i in conf_idx:
+                if i < len(row) and (n := _cell_int(row[i])) is not None and not 1 <= n <= 5:
+                    out.append(Violation("warn", f"確信度が値域外: {n}（1〜5）"))
 
     # 選定記号
     sel_matches = re.findall(r"\|\s*([◎○▲△▽\-—])\s*\|", text)
@@ -170,6 +211,32 @@ def _check_value_ranges(text: str) -> list[Violation]:
         if s not in SELECTION_TOKENS:
             out.append(Violation("warn", f"選定記号が値域外: {s}"))
     return out
+
+
+def _check_header_datetime(text: str, target_type: str) -> list[Violation]:
+    """共通ヘッダの取得日時（schema §2）。時刻の幻覚記入を防ぐ第一歩として存在を確認。"""
+    out: list[Violation] = []
+    if re.search(r"取得日時[:：]\s*\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}", text):
+        return out
+    severity = "warn" if target_type == "integrated" else "error"
+    out.append(Violation(
+        severity,
+        "共通ヘッダの「取得日時: YYYY-MM-DD HH:MM JST」が無い"
+        "（`TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST'` を実行して転記。schema §2）",
+    ))
+    return out
+
+
+def _check_n_zero_fabrication(text: str) -> list[Violation]:
+    """N=0 と書きながら具体的な勝率を記載している捏造パターンを検出（N=0 縮退規約違反）。"""
+    out: list[Violation] = []
+    for m in re.finditer(r"(\d+(?:\.\d+)?)\s*%\s*[\(（]\s*N\s*=\s*0", text):
+        out.append(Violation(
+            "warn",
+            f"N=0 なのに具体的勝率 {m.group(1)}% が記載されている"
+            "（サンプル0件の勝率は捏造。N=0 縮退規約 / schema §6）",
+        ))
+    return out[:3]
 
 
 def _check_integrated_betting(text: str) -> list[Violation]:
@@ -315,6 +382,8 @@ def validate(text: str, target_type: str | None = None) -> ValidationResult:
     result.violations.extend(_check_sections(text, REQUIRED_SECTIONS[detected]))
     result.violations.extend(_check_table_columns(text, REQUIRED_COLUMNS[detected]))
     result.violations.extend(_check_value_ranges(text))
+    result.violations.extend(_check_header_datetime(text, detected))
+    result.violations.extend(_check_n_zero_fabrication(text))
     result.violations.extend(_check_failure_markers(text))
     if detected == "integrated":
         result.violations.extend(_check_integrated_betting(text))

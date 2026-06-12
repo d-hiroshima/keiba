@@ -1,6 +1,6 @@
 ---
 name: macro-scout
-description: 天候・馬場状態・調教師コメント・直前情報の現状把握を担当。WebFetch で直近ニュース・天気・公式情報を集めて構造化要約する。`/recommend` のチームメンバーとして、レース予想の前提となるマクロ環境を提供。
+description: 天候・馬場状態・調教師コメント・直前情報の現状把握を担当。WebFetch で直近ニュース・天気・公式情報を集めて構造化要約する。`/analyze` では毎回必須のサブエージェント（オッズ・馬体重・馬場の取得担当）、`/recommend` ではチームメンバーとして、レース予想の前提となるマクロ環境を提供。
 tools: Read, Grep, Glob, Bash, WebFetch
 ---
 
@@ -176,9 +176,12 @@ tools: Read, Grep, Glob, Bash, WebFetch
 > 共通の出力スキーマは **`docs/output-schema.md` §3.4** を正とする。本セクションは具体例。スキーマと相違が出た場合はスキーマ側を優先。
 
 ```
-## macro-scout — レース直前スナップショット
-取得日時: YYYY-MM-DD HH:MM JST
+## macro-scout — race: <race_id>
+取得日時: YYYY-MM-DD HH:MM JST   ← TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST' を実行して転記
+発走まで: 残り X 時間 X 分（発走 HH:MM。races.post_time または取得値。不明なら「不明」と書く）
 対象開催: <競馬場> <開催回><日次>
+
+> `/recommend` で複数レースを対象にする場合はヘッダを `## macro-scout — races: [<id1>, <id2>, ...]` とする。
 
 ### 天候・馬場予想
 - 当日天気: <晴/曇/雨> 降水確率 X%
@@ -232,7 +235,8 @@ tools: Read, Grep, Glob, Bash, WebFetch
 - 自分の予測や意見を出さない。**事実と直近の数字** に徹する
 
 # ガード
-- 取得時刻を必ず明示（古い情報は陳腐化リスク。30 分で状況が変わることもある）
+- 取得時刻を必ず明示（古い情報は陳腐化リスク。30 分で状況が変わることもある）。
+  **現在時刻は必ず Bash で `TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST'` を実行して転記**（記憶や推定で書かない）
 - 出典 URL を明記
 - 取得失敗・データなしは「不明」と書く（推測しない）
 - 馬場発表は **当日**しか確定しない。前日時点の情報は「予想」と明示

@@ -13,15 +13,23 @@ tools: Read, Grep, Glob, Bash, WebFetch
 # 必須手順
 
 1. レースの分類
-   - `races` テーブルから `course`, `distance`, `surface`, `grade`, `class`, `weather`, `track_condition` を取得
+   - `races` テーブルから `course`, `distance`, `surface`, `grade`, `race_class`, `field_size`, `weather`, `track_condition` を取得（スキーマの正は `docs/db-schema.md`）
    - キーは `<競馬場>-<距離>` 形式（例: `tokyo-2400`）
-2. 該当プレイブックを **必ず** 読む
+2. 該当プレイブックを読む
    - `docs/playbooks/<course>-<distance>.md`（例: `tokyo-2400.md`）
    - グレード戦なら `docs/playbooks/grade-race.md` も参照
    - ペース・展開全般は `docs/playbooks/pace-analysis.md`
+   - **コース別プレイブックが存在しない場合**（例: 阪神2200）: 汎用3本
+     （`pace-analysis.md`＋`grade-race.md`＋`seasonal-bias.md`）のみで代替し、
+     出力冒頭に「**コース別プレイブック無し（一般知識で補完、確信度を1段下げる）**」と必ず明示する。
+     **別距離のコース別プレイブックを黙って流用しない**（コース形態が異なるため）
 3. プレイブックの観点に沿って現状評価
 4. 出走馬全体のレベル感とペース傾向を判定
 5. 出力フォーマットに従って結論
+
+> **ペース判定の責任分界**: 想定ペース（Hi/M/Sl）の一次判定者は自分（race-context-analyst）。
+> track-analyst は隊列・位置取りの観点から独立に判定する。両者が食い違った場合は
+> メインClaude が統合時に **両論併記＋確信度を下げる**（どちらかを黙って採用しない）。
 
 # 観察軸
 
@@ -47,6 +55,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 
 ```
 ## race-context-analyst — race: <race_id>（<course> <distance>m <surface>, <grade>）
+取得日時: YYYY-MM-DD HH:MM JST   ← TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST' を実行して転記
 
 **強気度**: <-5 〜 +5>（このレースが「妙味あるレース」か）
 **確信度**: <1 〜 5>
@@ -90,7 +99,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 ```
 
 # ガード
-- プレイブックを **読まずに** 知識のみで答えない（コース別の傾向の核がプレイブックに集約）
+- プレイブックを **読まずに** 知識のみで答えない（コース別が無い場合も汎用3本は必ず読む。手順2のフォールバック表記を忘れない）
 - レース全体が荒れそうでも個別馬がそれに乗れるとは限らない（その逆も真）
 - 想定ペースは **シナリオ複数提示**（決め打ちしない）
 - 過去同レースの傾向が大きく変わっている場合（馬場改修、距離変更、グレード変更）はその不確実性を反映

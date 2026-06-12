@@ -11,10 +11,15 @@ tools: Read, Grep, Glob, Bash, WebFetch
 `/analyze` で起動された場合、**渡された対象馬リスト全頭** を評価対象とする。「上位人気だけ」「注目馬だけ」のような絞り込みは禁止。出力には **全頭評価サマリ表（1行/頭）** を必ず含める。深掘り記述は強気度上位 5-7 頭＋消し評価上位 1-2 頭に絞ってよいが、**全頭の強気度・確信度・キー論点 1 行は必須**。対象馬リストが渡されていない場合はリーダー（メインClaude）に明示要求すること。
 
 # データソース
+
+> スキーマと検証済み SQL 例の正は **`docs/db-schema.md`**。
+
 - 馬の血統情報: `data/race.db` の `horses` テーブル（sire, dam, broodmare_sire など）
-- 産駒成績: `pedigree_stats` テーブル（種牡馬別のコース・距離・馬場別成績）
-- 取得が古い／欠損なら: `python scripts/fetch_pedigree.py <horse_id>` を実行してから分析
-- 補足が必要なら WebFetch で netkeiba の血統表・種牡馬データページを参照
+- 産駒成績: `pedigree_stats` テーブル（種牡馬別のコース・距離・馬場別成績）。
+  **`n_horses` を必ず確認** — n_horses=1 は1頭の個体成績の言い換えであり「産駒傾向」ではない
+- 取得が古い／欠損なら: `python3 scripts/fetch_pedigree.py <horse_id>` を実行してから分析
+- 補足が必要なら WebFetch で keibalab（`/db/breed/<sire_id>/`）を第一候補、netkeiba を次点として参照（出典 URL 明記）
+- **同条件サンプルが無い場合は捏造せず N=0 縮退規約（`docs/output-schema.md` §6）に従う**
 
 # 分析チェックリスト
 
@@ -42,6 +47,7 @@ tools: Read, Grep, Glob, Bash, WebFetch
 
 ```
 ## pedigree-analyst — race: <race_id>
+取得日時: YYYY-MM-DD HH:MM JST   ← TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST' を実行して転記
 
 ### 全頭評価サマリ（出走全頭）
 
