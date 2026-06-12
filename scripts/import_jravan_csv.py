@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import connect, init_db  # noqa: E402
+from db import init_db  # noqa: E402
 
 
 def detect_kind(path: Path) -> str:

@@ -48,16 +48,13 @@ def fetch_horse_pedigree(horse_id: str, force: bool) -> int:
         if not force and _done_today(conn, horse_id):
             print(f"  [skip] horse {horse_id} (血統取得済み)")
             return 0
-    try:
-        data = keibalab.fetch_horse(horse_id, force=force)
-    except Exception as e:  # noqa: BLE001
-        print(f"  [err]  horse {horse_id}: 取得失敗 {e}")
-        return 0
+    data = keibalab.fetch_horse(horse_id, force=force)
 
     ped, prof = data.get("pedigree", {}), data.get("profile", {})
     if not ped.get("sire"):
-        print(f"  [warn] horse {horse_id}: 血統が取得できず（保存スキップ）")
-        return 0
+        raise keibalab.ParseError(
+            f"horse {horse_id}: 血統表がパースできない（HTML 構造変化の疑い）"
+        )
 
     now = _now()
     with connect() as conn:
@@ -95,7 +92,8 @@ def fetch_sire_stats(sire_id: str, force: bool) -> int:
             (sire_id,),
         ).fetchone()
         rows = conn.execute(
-            """SELECT ra.course, ra.distance, ra.surface, re.finish_position AS fp
+            """SELECT ra.course, ra.distance, ra.surface, ra.track_condition AS tc,
+                      re.finish_position AS fp, re.horse_id
                FROM results re
                JOIN horses h ON h.horse_id = re.horse_id
                JOIN races  ra ON ra.race_id = re.race_id
@@ -110,32 +108,43 @@ def fetch_sire_stats(sire_id: str, force: bool) -> int:
         )
         return 0
 
-    # (course, distance, surface) で集計（馬場別は集約 = track_condition NULL）
+    # (course, distance, surface, track_condition) で集計。
+    # track_condition=None の行は「全馬場集計」（馬場別行とは別に常に作る）
     agg: dict = {}
-    for r in rows:
-        key = (r["course"], r["distance"], r["surface"])
-        a = agg.setdefault(key, [0, 0, 0, 0])  # starts, wins, 2nd, 3rd
+
+    def _add(key, fp, horse_id):
+        a = agg.setdefault(key, [0, 0, 0, 0, set()])  # starts, wins, 2nd, 3rd, horses
         a[0] += 1
-        if r["fp"] == 1:
+        if fp == 1:
             a[1] += 1
-        elif r["fp"] == 2:
+        elif fp == 2:
             a[2] += 1
-        elif r["fp"] == 3:
+        elif fp == 3:
             a[3] += 1
+        a[4].add(horse_id)
+
+    for r in rows:
+        _add((r["course"], r["distance"], r["surface"], None), r["fp"], r["horse_id"])
+        if r["tc"]:
+            _add((r["course"], r["distance"], r["surface"], r["tc"]), r["fp"], r["horse_id"])
 
     sire_name = name_row["sire"] if name_row else None
     now = _now()
+    low_sample = 0
     with connect() as conn:
         conn.execute("DELETE FROM pedigree_stats WHERE sire_id=?", (sire_id,))
-        for (course, distance, surface), (s, w, p, t) in agg.items():
+        for (course, distance, surface, tc), (s, w, p, t, horses) in agg.items():
+            if s < 5:
+                low_sample += 1
             conn.execute(
                 """INSERT INTO pedigree_stats
                 (sire_id, sire_name, course, distance, surface, track_condition,
-                 starts, wins, seconds, thirds, win_rate, place_rate, show_rate, fetched_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 starts, wins, seconds, thirds, n_horses,
+                 win_rate, place_rate, show_rate, fetched_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    sire_id, sire_name, course, distance, surface, None,
-                    s, w, p, t,
+                    sire_id, sire_name, course, distance, surface, tc,
+                    s, w, p, t, len(horses),
                     round(w / s, 3), round((w + p) / s, 3), round((w + p + t) / s, 3),
                     now,
                 ),
@@ -148,6 +157,11 @@ def fetch_sire_stats(sire_id: str, force: bool) -> int:
         f"  [ok]   sire {sire_id}: {sire_name or '(名称不明)'} "
         f"{len(agg)} 条件 / 延べ {len(rows)} 走を pedigree_stats に集計"
     )
+    if low_sample:
+        print(
+            f"  [warn] sire {sire_id}: starts<5 の小標本セルが {low_sample} 件。"
+            f"勝率を強気根拠に使わない（N=0 ルール / docs/output-schema.md §6）"
+        )
     return len(agg)
 
 
@@ -190,12 +204,16 @@ def main() -> None:
         ap.error("horse_id / --race / --sire-stats のいずれかが必要")
 
     saved = 0
+    failures = 0
     for h in targets:
         try:
             saved += fetch_horse_pedigree(h, args.force)
         except Exception as e:  # noqa: BLE001
+            failures += 1
             print(f"  [err]  {h}: {e}")
-    print(f"完了: {len(targets)} 頭中 {saved} 頭を保存")
+    print(f"完了: {len(targets)} 頭中 {saved} 頭を保存 / 失敗 {failures}")
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

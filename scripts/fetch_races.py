@@ -1,21 +1,23 @@
 """出走表（不変部分）を取得して SQLite に保存。
 
-データ源: keibalab.jp（/db/race/<id>/raceresult.html の出走馬ロスター）。
+データ源: keibalab.jp
+  - 発走前（レース日が今日以降）: /db/race/<id>/umabashira.html（馬柱）
+  - 確定後（レース日が過去）   : /db/race/<id>/raceresult.html のロスター
+    （結果ページが未確定なら馬柱にフォールバック）
 
 取得対象は **不変データのみ**:
-  races:   コース・距離・グレード・確定馬場/天気（レース後）
+  races:   コース・距離・グレード・発走時刻・確定馬場/天気（レース後のみ）
   entries: 馬番・枠・斤量・騎手・厩舎・性齢
 
 取得しない（揮発、macro-scout が WebFetch する）:
-  オッズ・人気 / 馬体重・前走比 / 馬場・天候の事前予報 / 調教気配・直前の乗り替わり
-
-注意: 既走レースは raceresult.html のロスターから entries を作れる。発走前の出馬表
-（未確定レース）は keibalab の別ページが必要（TODO: 出馬表ページ URL を要調査）。
+  事前オッズ・人気 / 事前馬体重 / 馬場・天候の予想 / 調教気配・直前の乗り替わり
 
 使用例（対象は都度プロンプト/引数で指定）:
-  python scripts/fetch_races.py 202605030811
-  python scripts/fetch_races.py 202605030811 202602210511   # 複数可
-  python scripts/fetch_races.py 202605030811 --force
+  python3 scripts/fetch_races.py 202605030811
+  python3 scripts/fetch_races.py 202605030811 202602210511   # 複数可
+  python3 scripts/fetch_races.py 202605030811 --force
+
+終了コード: 1件でも取得失敗があれば 1（CI でサイレント失敗させない）。
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import connect, init_db, parse_race_id  # noqa: E402
+from db import connect, init_db, parse_race_id, upsert_race  # noqa: E402
 import keibalab  # noqa: E402
 
 
@@ -48,42 +50,34 @@ def _done_today(conn, race_id: str) -> bool:
     return bool(row and row["fetched_at"].startswith(date.today().isoformat()))
 
 
+def _fetch_card_data(race_id: str, force: bool) -> dict:
+    """発走前後でソースを使い分けて {'race','runners'} を返す。"""
+    is_past = parse_race_id(race_id)["date"] < date.today().isoformat()
+    if is_past:
+        try:
+            return keibalab.fetch_race_result(race_id, force=force)
+        except keibalab.ContentNotReadyError:
+            # 当日未確定など。馬柱にフォールバック
+            return keibalab.fetch_race_card(race_id, force=force)
+    return keibalab.fetch_race_card(race_id, force=force)
+
+
 def fetch_one(race_id: str, force: bool) -> int:
     with connect() as conn:
         if not force and _done_today(conn, race_id):
             print(f"  [skip] {race_id} (出走表取得済み)")
             return 0
-    try:
-        data = keibalab.fetch_race_result(race_id, force=force)
-    except Exception as e:  # noqa: BLE001
-        print(f"  [err]  {race_id}: 取得失敗 {e}")
-        return 0
 
+    data = _fetch_card_data(race_id, force)
     runners = data.get("runners", [])
     if not runners:
-        print(
-            f"  [warn] {race_id}: 出走馬が取得できず（発走前の出馬表は未対応／保存スキップ）"
-        )
-        return 0
+        raise keibalab.ParseError(f"{race_id}: 出走馬が1頭も取得できなかった")
 
     race = data["race"]
     now = _now()
     with connect() as conn:
-        # races（確定値）を upsert
-        if keibalab.is_jra_race_id(race_id) and race.get("surface") and race.get("distance"):
-            conn.execute(
-                """INSERT OR REPLACE INTO races
-                (race_id, date, course, course_no, day_no, race_no, race_name, grade,
-                 surface, distance, direction, weather, track_condition, post_time, fetched_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    race_id, race.get("date"), race.get("course"), race.get("course_no"),
-                    race.get("day_no"), race.get("race_no") or parse_race_id(race_id)["race_no"],
-                    race.get("race_name"), race.get("grade"), race.get("surface"),
-                    race.get("distance"), race.get("direction"), race.get("weather"),
-                    race.get("track_condition"), race.get("post_time"), now,
-                ),
-            )
+        if keibalab.is_jra_race_id(race_id):
+            upsert_race(conn, {**race, "fetched_at": now}, authoritative=True)
         for ru in runners:
             conn.execute(
                 """INSERT OR REPLACE INTO entries
@@ -112,14 +106,17 @@ def main() -> None:
 
     init_db()
 
-    race_ids = args.race_ids
+    failures = 0
     total = 0
-    for rid in race_ids:
+    for rid in args.race_ids:
         try:
             total += fetch_one(rid, args.force)
         except Exception as e:  # noqa: BLE001
+            failures += 1
             print(f"  [err]  {rid}: {e}")
-    print(f"完了: {len(race_ids)} レース / 延べ {total} 頭")
+    print(f"完了: {len(args.race_ids)} レース / 延べ {total} 頭 / 失敗 {failures}")
+    if failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
