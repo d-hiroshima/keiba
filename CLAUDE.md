@@ -95,12 +95,19 @@ slack-bot/           # B 形態の本体（Slack Bolt + Anthropic API）
 2. macro-scout が責任を持って都度取得するほうが、エージェント間の責務分担が明確
 3. keibalab スクレイピングの叩く回数を最小化できる（規約・rate limit 配慮）
 
+## セットアップ（ローカル実行環境）
+
+- この環境のインタープリタは **`python3`**（`python` コマンドは無い）。ドキュメント中のコマンドはすべて `python3` で実行する
+- 依存導入（初回のみ）: `pip3 install --user --break-system-packages -r requirements.txt`（requests / beautifulsoup4 / lxml。venv 派は `python3 -m venv .venv` でも可）
+- `sqlite3` CLI は環境に無い。DB 参照は `python3 scripts/db.py card/history/...`（後述）か `python3 -c "import sqlite3; ..."` を使う
+- DB スキーマと検証済み SQL 例の正は **`docs/db-schema.md`**（`python3 scripts/db.py schema-doc` で自動生成）
+
 ## データ取得
 取得元は **keibalab.jp**（`scripts/keibalab.py` が HTTP＋HTMLキャッシュ＋パースを集約）。ブラウザ相当 UA・連続取得は最低 2 秒スリープ・取得済み HTML は `data/cache/` に保存して再取得を避ける。
-- `python scripts/fetch_races.py <race-id>...` で出走表（不変部分）を取得 → `races`/`entries` 保存
-- `python scripts/fetch_results.py <id>...` で結果/戦績を取得。**10桁=馬の全戦績（`results`+過去`races`）/ 12桁=1レース全着順**を自動判別
-- `python scripts/fetch_pedigree.py <horse-id>...` で血統 → `horses` 保存
-- `python scripts/fetch_pedigree.py --sire-stats <sire-id>` で産駒成績を **ローカル集計** → `pedigree_stats`（先に産駒の戦績取得が必要）
+- `python3 scripts/fetch_races.py <race-id>...` で出走表を取得 → `races`/`entries` 保存。**発走前は馬柱（umabashira）、確定後は結果ページ**を自動で使い分ける
+- `python3 scripts/fetch_results.py <id>...` で結果/戦績を取得。**10桁=馬の全戦績（`results`+過去`races`）/ 12桁=1レース全着順＋払戻**を自動判別
+- `python3 scripts/fetch_pedigree.py <horse-id>...` で血統 → `horses` 保存
+- `python3 scripts/fetch_pedigree.py --sire-stats <sire-id>` で産駒成績を **ローカル集計** → `pedigree_stats`（先に産駒の戦績取得が必要）
 - 取得済みなら自動スキップ（**実データ行の有無＋当日 fetch_log で判定**。空ログだけでは取得済み扱いにしない）。`--force` で強制再取得
 - 取得対象は **都度引数で指定**（race_id / horse_id を複数可、または `--race <race_id>`）。固定の一括リスト（watchlist）は持たない
 - **オッズ・馬体重・馬場発表は取得対象外**。macro-scout が都度 WebFetch する

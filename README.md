@@ -20,17 +20,16 @@
 ## クイックスタート（A）
 
 ```bash
-# 1. 依存をインストール
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+# 1. 依存をインストール（WSL 等で venv を使わない場合）
+pip3 install --user --break-system-packages -r requirements.txt
+#    venv 派: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
 # 2. DB 初期化
-python scripts/db.py
+python3 scripts/db.py
 
 # 3. 分析したいレースを都度指定して取得（watchlist は廃止）
 #    （race_id は keibalab の DB URL /db/race/<race_id>/ から。日付ベース YYYYMMDD+場+R）
-python scripts/fetch_races.py 202605030811
+python3 scripts/fetch_races.py 202605030811
 
 # 4. Claude Code を開いて分析
 claude
