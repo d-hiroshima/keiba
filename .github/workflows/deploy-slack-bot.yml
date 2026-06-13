@@ -3,16 +3,25 @@ name: Deploy slack-bot
 # slack-bot/, .claude/agents/, docs/playbooks/, scripts/ のいずれかに変更が入ったら
 # Cloud Run にデプロイ。設計のキモ「プロンプト一元管理」を維持するため、
 # .claude/agents の変更でも再デプロイする。
+#
+# ⚠️ 自動デプロイは一時停止中（= 手動実行 workflow_dispatch のみ）。
+#   理由: B系統の GCP Workload Identity Federation が未設定のため、main への push で
+#   自動発火すると "Auth to Google Cloud" で必ず失敗し Actions が赤くなる。さらに
+#   slack-bot/orchestrator.py が NotImplementedError スタブで、デプロイしても無稼働。
+#   再有効化の手順: 下記を設定 → push トリガのコメントアウトを外す。
+#     secrets:   GCP_WIF_PROVIDER, GCP_DEPLOY_SA
+#     variables: GCP_PROJECT, GCP_REGION, ARTIFACT_REPO
+#   （それまでは Actions タブの "Run workflow" から手動実行できる）
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "slack-bot/**"
-      - ".claude/agents/**"
-      - "docs/playbooks/**"
-      - "scripts/**"
-      - ".github/workflows/deploy-slack-bot.yml"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "slack-bot/**"
+  #     - ".claude/agents/**"
+  #     - "docs/playbooks/**"
+  #     - "scripts/**"
+  #     - ".github/workflows/deploy-slack-bot.yml"
   workflow_dispatch:
 
 permissions:
