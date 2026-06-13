@@ -68,11 +68,11 @@
 | wins | INTEGER |  |
 | seconds | INTEGER |  |
 | thirds | INTEGER |  |
+| n_horses | INTEGER |  |
 | win_rate | REAL |  |
 | place_rate | REAL |  |
 | show_rate | REAL |  |
 | fetched_at | TEXT |  |
-| n_horses | INTEGER |  |
 
 ## races
 
@@ -93,12 +93,12 @@
 | weather | TEXT |  |
 | track_condition | TEXT |  |
 | post_time | TEXT |  |
-| fetched_at | TEXT |  |
 | field_size | INTEGER |  |
 | pace_front_3f | REAL |  |
 | pace_last_3f | REAL |  |
 | pace_class | TEXT |  |
 | lap_times | TEXT |  |
+| fetched_at | TEXT |  |
 
 ## results
 
@@ -113,7 +113,6 @@
 | last_3f_rank | INTEGER |  |
 | passing_order | TEXT |  |
 | corner_position | TEXT |  |
-| note | TEXT |  |
 | jockey | TEXT |  |
 | trainer | TEXT |  |
 | weight_carry | REAL |  |
@@ -121,6 +120,7 @@
 | win_odds | REAL |  |
 | horse_weight | INTEGER |  |
 | horse_weight_diff | INTEGER |  |
+| note | TEXT |  |
 
 ## 検証済みクエリ例（コピペ実行可）
 

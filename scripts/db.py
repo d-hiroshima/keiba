@@ -556,7 +556,12 @@ def cmd_schema_doc() -> str:
         " で再生成する（CI が drift を検出）。スキーマの定義は `scripts/db.py` の SCHEMA。",
         "",
     ]
-    with connect() as conn:
+    # 実 DB（data/race.db）の ALTER 履歴に依存せず SCHEMA の定義順を反映するため、
+    # 毎回まっさらな in-memory DB に SCHEMA を流して生成する。ローカルの migrate 済み
+    # DB は ALTER でカラムが末尾追加され順序が変わるため、そのまま生成すると CI の
+    # fresh DB と drift する。in-memory 固定でその差を構造的に消す。
+    conn = sqlite3.connect(":memory:")
+    try:
         conn.executescript(SCHEMA)
         _migrate(conn)
         tables = [
@@ -569,6 +574,8 @@ def cmd_schema_doc() -> str:
             for c in conn.execute(f"PRAGMA table_info({t})"):
                 lines.append(f"| {c[1]} | {c[2]} | {'✓' if c[5] else ''} |")
             lines.append("")
+    finally:
+        conn.close()
     lines.append(_VERIFIED_QUERIES)
     return "\n".join(lines)
 
