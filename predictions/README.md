@@ -23,6 +23,10 @@ race_id プレフィクスで `score_prediction.py` がレースを特定する�
   → 統合出力を predictions/<race_id>-<slug>.md に保存
   → python3 scripts/validate_output.py predictions/<...>.md --type integrated
   → （発走前に）git commit
+  → 【当日】オッズ・馬場が取得できたら確定買い目（券種・点数・金額）を md に追記し、
+    発走前に再 commit（= score_prediction.py が機械採点できる形にする）。
+    前日にオッズ取得失敗で「構造提案」のままコミットした場合に必須（2026 宝塚記念の反省:
+    実際の勝ち買い目がチャットだけに残り機械採点が 0 円になった）。
 --- レース後 ---
 /review-race <race_id>
   → fetch_results.py で結果・払戻を取得
