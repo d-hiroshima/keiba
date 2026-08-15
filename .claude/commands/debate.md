@@ -18,8 +18,8 @@ description: 議論型・多視点レース予想。Agent Teams を生成し、�
 2. `data/race.db` の `races` テーブルでコース・距離・グレード取得
 3. データ鮮度を確認:
    ```
-   python scripts/fetch_races.py <race_id>
-   python scripts/fetch_pedigree.py --race <race_id>
+   python3 scripts/fetch_races.py <race_id>
+   python3 scripts/fetch_pedigree.py --race <race_id>
    ```
 4. プレイブック（`docs/playbooks/<course>-<distance>.md`）の存在確認
 

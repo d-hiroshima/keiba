@@ -1,9 +1,9 @@
 """エージェント／統合出力が `docs/output-schema.md` に準拠しているか検証する。
 
 使用例:
-  python scripts/validate_output.py output.md --type pedigree
-  python scripts/validate_output.py integrated.md --type integrated
-  python scripts/validate_output.py output.md            # ヘッダから自動判別
+  python3 scripts/validate_output.py output.md --type pedigree
+  python3 scripts/validate_output.py integrated.md --type integrated
+  python3 scripts/validate_output.py output.md            # ヘッダから自動判別
 
 非ゼロ終了コード = スキーマ違反あり。CI と Slack bot orchestrator から呼ぶ想定。
 """

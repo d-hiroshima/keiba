@@ -13,9 +13,9 @@ description: 個別レースの総合予想を実施するスキル。race_id �
 2. `data/race.db` の `races` テーブルから `course`, `distance`, `surface`, `grade`, `class` を取得
 3. プレイブックキー（`<course>-<distance>`）を判定
 4. **不変データの鮮度チェック**（一度取れば変わらない情報だけ DB に取得）：
-   - `python scripts/fetch_races.py <race_id>` を実行（出走馬の馬番・斤量・騎手など出馬投票後の確定情報）
-   - 出走馬の血統データが古ければ `python scripts/fetch_pedigree.py --race <race_id>`
-   - 出走馬の過去走が古ければ `python scripts/fetch_results.py --horses-from-race <race_id>`
+   - `python3 scripts/fetch_races.py <race_id>` を実行（出走馬の馬番・斤量・騎手など出馬投票後の確定情報）
+   - 出走馬の血統データが古ければ `python3 scripts/fetch_pedigree.py --race <race_id>`
+   - 出走馬の過去走が古ければ `python3 scripts/fetch_results.py --horses-from-race <race_id>`
 5. **揮発データは取得しない**（オッズ・馬体重・馬場発表・天候は macro-scout がステップ3で WebFetch する）
 6. **対象馬リスト確定（全頭分析の起点）**: `entries` テーブルから出馬表全頭（通常 12-18 頭）を取得し、馬番順に並べた **対象馬リスト** を作る。これ以降のすべてのエージェント呼び出しで、このリストの **全頭** を評価対象として明示的に渡す。出馬表が取得できていない場合は **scout に WebFetch で先に確定させる**（部分情報での分析は最終手段）。
 

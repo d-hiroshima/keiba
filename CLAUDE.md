@@ -97,8 +97,9 @@ slack-bot/           # B 形態の本体（Slack Bolt + Anthropic API）
 
 ## セットアップ（ローカル実行環境）
 
-- この環境のインタープリタは **`python3`**（`python` コマンドは無い）。ドキュメント中のコマンドはすべて `python3` で実行する
-- 依存導入（初回のみ）: `pip3 install --user --break-system-packages -r requirements.txt`（requests / beautifulsoup4 / lxml。venv 派は `python3 -m venv .venv` でも可）
+- インタープリタは環境で異なる: **Windows（本機）は `python`**（`python3` コマンドは無い）、WSL/Linux は `python3`（`python` コマンドは無い）。
+  ドキュメント中のコマンド例は `python3` 表記で統一している。**Windows ではそのまま `python` に読み替えて実行する**（最初の 1 回で `python --version` 等を確認してから進めてよい）
+- 依存導入（初回のみ）: Windows は `pip install -r requirements.txt`、WSL/Linux は `pip3 install --user --break-system-packages -r requirements.txt`（requests / beautifulsoup4 / lxml。venv 派は `python3 -m venv .venv` でも可）
 - `sqlite3` CLI は環境に無い。DB 参照は `python3 scripts/db.py card/history/...`（後述）か `python3 -c "import sqlite3; ..."` を使う
 - DB スキーマと検証済み SQL 例の正は **`docs/db-schema.md`**（`python3 scripts/db.py schema-doc` で自動生成）
 
