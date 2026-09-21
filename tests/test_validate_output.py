@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import validate_output
 from validate_output import detect_type, validate
 
 INTEGRATED_OK = """# レース予想: 202606010511 テスト記念（tokyo 1600m turf, GIII）
@@ -93,3 +94,57 @@ def test_n_zero_fabrication_warned():
     text = INTEGRATED_OK + "\n父系成績: 15%(N=0)\n"
     result = validate(text, "integrated")
     assert any("N=0 なのに具体的勝率" in v.message for v in result.violations)
+
+
+def test_marked_horse_missing_from_bets_warns():
+    """印を付けた馬が買い目に1点も無ければ warn [2026セントライト記念反省]。"""
+    text = """# レース予想: 202609130611 テスト
+
+## 全頭評価サマリ
+| 馬番 | 馬名 | 総合 | 選定 |
+|---|---|---|---|
+| 6 | アルファ | +4 | ◎ |
+| 7 | ベータ | +1 | ▽ |
+| 8 | ガンマ | +3 | ○ |
+
+## 買い目（参考）
+### 三連複 200円
+| 買い目 | 投資額 |
+|---|---|
+| 6-8-9 | 100 円 |
+| 6-8-10 | 100 円 |
+"""
+    vs = validate_output._check_marked_horse_in_bets(text)
+    assert len(vs) == 1
+    assert "▽7" in vs[0].message
+
+
+def test_marked_horses_all_in_bets_no_warn():
+    text = """# レース予想: 202609130611 テスト
+
+## 全頭評価サマリ
+| 馬番 | 馬名 | 総合 | 選定 |
+|---|---|---|---|
+| 6 | アルファ | +4 | ◎ |
+| 7 | ベータ | +1 | ▽ |
+
+## 買い目（参考）
+### ワイド 100円
+| 買い目 | 投資額 |
+|---|---|
+| 6-7 | 100 円 |
+"""
+    assert validate_output._check_marked_horse_in_bets(text) == []
+
+
+def test_pace_without_front_runner_warns():
+    """ペースに触れつつ逃げ馬の記述が無ければ warn [2026オールカマー反省]。"""
+    text = "## 想定ペース・展開\n想定ペースは Sl。\n\n## 買い目（参考）\n| 買い目 | 投資額 |\n|---|---|\n| 1-2 | 100 円 |\n"
+    vs = validate_output._check_front_runner_named(text)
+    assert len(vs) == 1
+    assert "逃げ馬" in vs[0].message
+
+
+def test_pace_with_front_runner_no_warn():
+    text = "## 想定ペース・展開\n想定ペースは Sl。11番が逃げ、2番が番手。\n\n## 買い目（参考）\n| 買い目 | 投資額 |\n|---|---|\n| 1-2 | 100 円 |\n"
+    assert validate_output._check_front_runner_named(text) == []
