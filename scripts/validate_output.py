@@ -402,6 +402,57 @@ def _check_marked_horse_in_bets(text: str) -> list[Violation]:
     return out
 
 
+def _check_marked_horse_only_in_trio(text: str) -> list[Violation]:
+    """2頭券（ワイド等）を買っているのに、印馬が三連系の組合せにしか入っていなければ warn。
+
+    三連複1点（的中確率1%未満）だけで「買い目に入れた」ことにすると、ゲート7(a)は形式上
+    満たすが実質は入っていない [2026凱旋門賞反省: 初版は▽7を三連複1点のみ→0円、
+    改訂でワイド◎-7を足して2着激走を拾い回収率256%]。
+    """
+    out: list[Violation] = []
+    if "買い目" not in text:
+        return out
+    marked: dict[int, str] = {}
+    for header, rows in _iter_tables(text):
+        if "選定" not in header or "馬番" not in header:
+            continue
+        i_no, i_sel = header.index("馬番"), header.index("選定")
+        for row in rows:
+            if len(row) <= max(i_no, i_sel):
+                continue
+            m = re.fullmatch(r"\d+", row[i_no].strip("* "))
+            sel = row[i_sel].strip("* ")
+            if m and sel and sel[0] in SELECTION_TOKENS and sel[0] != "-":
+                marked[int(m.group())] = sel[0]
+        if marked:
+            break
+    if not marked:
+        return out
+    idx = text.find("## 買い目")
+    in_pair: set[int] = set()
+    in_trio: set[int] = set()
+    for header, rows in _iter_tables(text[idx:] if idx >= 0 else text):
+        if not any("買い目" in h or "組合せ" in h for h in header):
+            continue
+        for row in rows:
+            if not row or "合計" in row[0]:
+                continue
+            for combo in re.findall(r"\d+(?:-\d+)+", row[0]):
+                nums = {int(n) for n in combo.split("-")}
+                (in_pair if len(nums) == 2 else in_trio).update(nums)
+    if not in_pair:
+        return out  # 三連系のみの買い方はユーザー選択なので対象外
+    trio_only = {n: s for n, s in marked.items() if n in in_trio and n not in in_pair}
+    if trio_only:
+        desc = " / ".join(f"{s}{n}" for n, s in sorted(trio_only.items()))
+        out.append(Violation(
+            "warn",
+            f"印馬が三連系の組合せにしか入っていない: {desc}。2頭券を買うなら"
+            "◎との2頭券で最低1点持つ（三連系1点は実質入っていないのと同じ）[2026凱旋門賞反省]",
+        ))
+    return out
+
+
 def _check_front_runner_named(text: str) -> list[Violation]:
     """逃げ馬候補・隊列への言及が無ければ warn [2026オールカマー反省]。"""
     out: list[Violation] = []
@@ -429,6 +480,7 @@ def _check_analysis_pitfalls(text: str, target_type: str) -> list[Violation]:
     if target_type == "integrated":
         out.extend(_check_single_axis(text))
         out.extend(_check_marked_horse_in_bets(text))
+        out.extend(_check_marked_horse_only_in_trio(text))
         out.extend(_check_front_runner_named(text))
     if target_type in ("integrated", "track", "pedigree", "macro-scout"):
         out.extend(_check_weight_threshold(text))

@@ -30,6 +30,16 @@ race_id プレフィクスで `score_prediction.py` がレースを特定する�
   → 外した場合は docs/postmortems/ に教訓を書き、反映先を決める
 ```
 
+## 海外レース（JRA 海外発売）
+
+- ファイル名には **擬似 race_id `YYYYMMDD + 99 + R`** を使う（例: `202610049905-prix-de-larc-de-triomphe.md`）
+- `fetch_results.py` / `fetch_races.py` は海外に非対応。採点の前に、netkeiba の結果ページ
+  （`race.netkeiba.com/race/result.html?race_id=<netkeiba ID>`）から `races` / `entries` / `results` /
+  `payouts` を擬似 race_id で手動投入する。`horse_id` は netkeiba の ID（`000a...` 形式）を使い、
+  `entries.gate` にはゲート（ストール）番号を入れる
+- 投入後の採点手順は国内と同じ（`score_prediction.py --append`）
+- 手動投入の手順はまだスクリプト化していない（`docs/postmortems/2026-1004-arc.md` の「候補」）
+
 ## プライバシー・データ分類
 
 買い目の金額は個人情報に近い。このリポジトリを公開にする場合は

@@ -137,6 +137,59 @@ def test_marked_horses_all_in_bets_no_warn():
     assert validate_output._check_marked_horse_in_bets(text) == []
 
 
+_ARC_MARKS = """# レース予想: 202610049905 テスト
+
+## 全頭評価サマリ
+| 馬番 | 馬名 | 総合 | 選定 |
+|---|---|---|---|
+| 1 | アルファ | +3 | ◎ |
+| 7 | ベータ | +1 | ▽ |
+| 15 | ガンマ | +2 | ○ |
+
+## 買い目（参考）
+"""
+
+
+def test_marked_horse_only_in_trio_warns_when_pairs_bought():
+    """2頭券を買いつつ印馬が三連複1点のみなら warn [2026凱旋門賞反省]。"""
+    text = _ARC_MARKS + """### ワイド 200円
+| 買い目 | 投資額 |
+|---|---|
+| 1-15 | 100 円 |
+### 三連複 100円
+| 買い目 | 投資額 |
+|---|---|
+| 1-7-15 | 100 円 |
+"""
+    vs = validate_output._check_marked_horse_only_in_trio(text)
+    assert len(vs) == 1
+    assert "▽7" in vs[0].message
+
+
+def test_marked_horse_in_pair_no_warn():
+    text = _ARC_MARKS + """### ワイド 200円
+| 買い目 | 投資額 |
+|---|---|
+| 1-15 | 100 円 |
+| 1-7 | 100 円 |
+### 三連複 100円
+| 買い目 | 投資額 |
+|---|---|
+| 1-7-15 | 100 円 |
+"""
+    assert validate_output._check_marked_horse_only_in_trio(text) == []
+
+
+def test_trio_only_plan_not_flagged():
+    """三連系だけの買い方はユーザー選択なので対象外。"""
+    text = _ARC_MARKS + """### 三連複 100円
+| 買い目 | 投資額 |
+|---|---|
+| 1-7-15 | 100 円 |
+"""
+    assert validate_output._check_marked_horse_only_in_trio(text) == []
+
+
 def test_pace_without_front_runner_warns():
     """ペースに触れつつ逃げ馬の記述が無ければ warn [2026オールカマー反省]。"""
     text = "## 想定ペース・展開\n想定ペースは Sl。\n\n## 買い目（参考）\n| 買い目 | 投資額 |\n|---|---|\n| 1-2 | 100 円 |\n"
