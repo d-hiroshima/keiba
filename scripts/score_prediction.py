@@ -78,35 +78,76 @@ def parse_marks(text: str) -> dict[int, str]:
     return marks
 
 
+# 買い目表の列見出し。見出しで列位置を決める（旧実装は 1列目=買い目・3列目=投資額 の固定位置で、
+# 「| # | 組み合わせ | 金額 |」の表を 0 件と読んだ [2026秋華賞]）
+_COMBO_HEADERS = ("買い目", "組み合わせ", "組合せ")
+_AMOUNT_HEADERS = ("投資額", "金額", "投資")
+# この語を含む券種見出しがあれば、その見出しの買い目だけを採点する（推奨案と実購入が併記された場合）
+ACTUAL_MARKER = "実購入"
+
+
+def _column_index(header: list[str], names: tuple[str, ...]) -> int | None:
+    for name in names:
+        for i, h in enumerate(header):
+            if name in h:
+                return i
+    return None
+
+
 def parse_bets(text: str) -> list[Bet]:
-    """買い目セクション（### <券種> ... の直下の表）から賭け目を抽出。"""
-    bets: list[Bet] = []
+    """買い目セクション（### <券種> ... の直下の表）から賭け目を抽出。
+
+    「実購入」を含む券種見出しが1つでもあれば、その見出し配下の買い目だけを返す。
+    """
+    bets: list[tuple[Bet, bool]] = []
     current_type: str | None = None
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i]
+    current_actual = False
+    header: list[str] | None = None  # 現在の表の見出し（None = 表の外）
+    for line in text.splitlines():
+        stripped = line.strip()
         if line.startswith("#"):
             current_type = None
+            current_actual = ACTUAL_MARKER in line
+            header = None
             for word, bt in _BET_WORDS.items():
                 if word in line:
                     current_type = bt
                     break
-        elif current_type and line.strip().startswith("|"):
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) >= 3 and "合計" not in cells[0]:
-                m = re.match(r"(\d+(?:-\d+)*)", cells[0])
-                # 投資額カラム（3列目想定。「300 円」）
-                ma = re.search(r"([\d,]+)\s*円", cells[2])
-                if m and ma and "-" in m.group(1) or (m and current_type in ("win", "place") and ma):
-                    if m and ma:
-                        bets.append(Bet(
-                            bet_type=current_type,
-                            combination=_norm_combo(m.group(1), current_type),
-                            amount=int(ma.group(1).replace(",", "")),
-                        ))
-        i += 1
-    return bets
+            continue
+        if not stripped.startswith("|"):
+            header = None
+            continue
+        if not current_type:
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if header is None:
+            header = cells
+            continue
+        if re.fullmatch(r"[\s:\-|]+", stripped):
+            continue  # 見出し直下の区切り行
+        # 投資額の列が無い表（決着パターン別の払戻表など）は買い目表ではない
+        i_amount = _column_index(header, _AMOUNT_HEADERS)
+        if i_amount is None:
+            continue
+        i_combo = _column_index(header, _COMBO_HEADERS)
+        if i_combo is None:
+            i_combo = 0
+        if len(cells) <= max(i_combo, i_amount) or "合計" in cells[0]:
+            continue
+        m = re.match(r"(\d+(?:-\d+)*)", cells[i_combo].strip("* "))
+        ma = re.search(r"([\d,]+)\s*円", cells[i_amount])
+        if not (m and ma):
+            continue
+        if "-" not in m.group(1) and current_type not in ("win", "place"):
+            continue
+        bets.append((Bet(
+            bet_type=current_type,
+            combination=_norm_combo(m.group(1), current_type),
+            amount=int(ma.group(1).replace(",", "")),
+        ), current_actual))
+    if any(actual for _, actual in bets):
+        return [b for b, actual in bets if actual]
+    return [b for b, _ in bets]
 
 
 def score(race_id: str, marks: dict[int, str], bets: list[Bet]) -> dict | None:

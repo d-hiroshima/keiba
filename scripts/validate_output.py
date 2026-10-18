@@ -254,6 +254,38 @@ def _check_integrated_betting(text: str) -> list[Violation]:
     return out
 
 
+def _check_bets_scoreable(text: str) -> list[Violation]:
+    """券種見出し（### ワイド 等）の下に表があるのに採点器が1点も読めなければ error [2026秋華賞反省]。
+
+    読めない買い目は機械採点されず、校正の母集団から黙って落ちる。表は output-schema §4 の
+    「| 買い目 | 推定オッズ | 投資額 | 想定払戻 |」形式（列見出しに「買い目」と「投資額」）で書く。
+    """
+    from score_prediction import _BET_WORDS, parse_bets  # 循環 import 回避のため遅延
+
+    idx = text.find("## 買い目")
+    if idx < 0:
+        return []
+    section = text[idx:]
+    end = re.search(r"^## (?!買い目)", section, re.MULTILINE)
+    if end:
+        section = section[: end.start()]
+    has_bet_table = False
+    current_is_bet = False
+    for line in section.splitlines():
+        if line.startswith("#"):
+            current_is_bet = any(w in line for w in _BET_WORDS)
+        elif current_is_bet and line.strip().startswith("|"):
+            has_bet_table = True
+            break
+    if has_bet_table and not parse_bets(text):
+        return [Violation(
+            "error",
+            "買い目表を採点器（score_prediction.py）が1点も読めない。列見出しを"
+            "「| 買い目 | 推定オッズ | 投資額 | 想定払戻 |」にし、投資額は「100 円」と書く [2026秋華賞反省]",
+        )]
+    return []
+
+
 def _check_failure_markers(text: str) -> list[Violation]:
     """データ取得失敗の明示（空欄禁止）を緩く確認。空のセル（| | や | |）が多すぎる場合に警告。"""
     out: list[Violation] = []
@@ -381,7 +413,7 @@ def _check_marked_horse_in_bets(text: str) -> list[Violation]:
     idx = text.find("## 買い目")
     bet_nums: set[int] = set()
     for header, rows in _iter_tables(text[idx:] if idx >= 0 else text):
-        if not any("買い目" in h or "組合せ" in h for h in header):
+        if not any("買い目" in h or "組合せ" in h or "組み合わせ" in h for h in header):
             continue
         for row in rows:
             if not row or "合計" in row[0]:
@@ -432,7 +464,7 @@ def _check_marked_horse_only_in_trio(text: str) -> list[Violation]:
     in_pair: set[int] = set()
     in_trio: set[int] = set()
     for header, rows in _iter_tables(text[idx:] if idx >= 0 else text):
-        if not any("買い目" in h or "組合せ" in h for h in header):
+        if not any("買い目" in h or "組合せ" in h or "組み合わせ" in h for h in header):
             continue
         for row in rows:
             if not row or "合計" in row[0]:
@@ -451,6 +483,70 @@ def _check_marked_horse_only_in_trio(text: str) -> list[Violation]:
             "◎との2頭券で最低1点持つ（三連系1点は実質入っていないのと同じ）[2026凱旋門賞反省]",
         ))
     return out
+
+
+def _summary_rows(text: str):
+    """全頭評価サマリ表を (馬番, 想定人気セル, 総合, 選定, キー論点) で列挙。表が無ければ空。"""
+    for header, rows in _iter_tables(text):
+        if not all(h in header for h in ("馬番", "総合", "選定", "想定人気")):
+            continue
+        i_no, i_pop = header.index("馬番"), header.index("想定人気")
+        i_total, i_sel = header.index("総合"), header.index("選定")
+        i_key = header.index("キー論点") if "キー論点" in header else None
+        for row in rows:
+            if len(row) <= max(i_no, i_pop, i_total, i_sel):
+                continue
+            no = _cell_int(row[i_no])
+            if no is None:
+                continue
+            key = row[i_key] if i_key is not None and i_key < len(row) else ""
+            yield no, row[i_pop], _cell_int(row[i_total]), row[i_sel].strip("* "), key
+        return
+
+
+def _check_positive_unmarked(text: str) -> list[Violation]:
+    """総合が正（+1以上）なのに無印「-」の馬がいれば warn [2026秋華賞反省]。
+
+    「割引（消しではない）」と書いて無印にすると、免責チェック（_check_cut_exemption）は通るが
+    実質は消しになる。2026秋華賞: 1 ギャラボーグ（総合+1・GI 2着2回・休み明け）を無印 → 2着。
+    """
+    # キー論点で EV を再計算して外した馬は対象外（wide-strategy.md §6-5 の1 に沿った除外）
+    names = [str(no) for no, _, total, sel, key in _summary_rows(text)
+             if total is not None and total >= 1 and sel in ("-", "－", "") and "EV" not in key]
+    if not names:
+        return []
+    return [Violation(
+        "warn",
+        f"総合が正なのに無印の馬: {', '.join(names)}。割引なら △/▽ を付けて買い目で扱うか、"
+        "総合を 0 以下に直して消す理由を書く [2026秋華賞反省]",
+    )]
+
+
+def _check_box_with_heavy_favorite(text: str) -> list[Violation]:
+    """◎の想定単勝が 2.0 倍以下なのに、買い目の半数以上が◎を含まなければ warn [2026秋華賞反省]。
+
+    5頭BOX の10点中6点は◎を含まない。◎が連対すると（想定 7割超）その6点はすべて外れになる。
+    2026秋華賞: ◎8（1.3倍）が1着、2着は BOX 外の 1 → 馬連 1-8 1,600円を取り逃し。
+    """
+    from score_prediction import parse_bets  # 循環 import 回避のため遅延
+
+    for no, pop_cell, _, sel, _ in _summary_rows(text):
+        if not sel.startswith("◎"):
+            continue
+        m = re.search(r"[(（]\s*(\d+(?:\.\d+)?)\s*[)）]", pop_cell)
+        if not (m and float(m.group(1)) <= 2.0):
+            return []
+        bets = [b for b in parse_bets(text) if "-" in b.combination]
+        without = [b for b in bets if str(no) not in b.combination.split("-")]
+        if bets and len(without) * 2 >= len(bets):
+            return [Violation(
+                "warn",
+                f"◎{no}の想定単勝 {m.group(1)} 倍なのに、買い目 {len(bets)} 点中 {len(without)} 点が◎を含まない"
+                "（BOX 等）。◎連対時に全部外れる。◎軸流しで相手を広げる案と比較する"
+                "（wide-strategy.md §6-5 の7） [2026秋華賞反省]",
+            )]
+        return []
+    return []
 
 
 def _check_front_runner_named(text: str) -> list[Violation]:
@@ -482,6 +578,8 @@ def _check_analysis_pitfalls(text: str, target_type: str) -> list[Violation]:
         out.extend(_check_marked_horse_in_bets(text))
         out.extend(_check_marked_horse_only_in_trio(text))
         out.extend(_check_front_runner_named(text))
+        out.extend(_check_positive_unmarked(text))
+        out.extend(_check_box_with_heavy_favorite(text))
     if target_type in ("integrated", "track", "pedigree", "macro-scout"):
         out.extend(_check_weight_threshold(text))
     return out
@@ -509,6 +607,7 @@ def validate(text: str, target_type: str | None = None) -> ValidationResult:
     result.violations.extend(_check_failure_markers(text))
     if detected == "integrated":
         result.violations.extend(_check_integrated_betting(text))
+        result.violations.extend(_check_bets_scoreable(text))
     # 分析的落とし穴（2026ダービー反省）。スキーマ違反とは別レイヤの warn。
     result.violations.extend(_check_analysis_pitfalls(text, detected))
     return result

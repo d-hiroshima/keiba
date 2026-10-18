@@ -88,3 +88,47 @@ def test_score_end_to_end(tmp_db):
 
 def test_score_returns_none_without_results(tmp_db):
     assert score("209901010101", {1: "◎"}, []) is None
+
+
+# 2026秋華賞: 「| # | 組み合わせ | 金額 |」の表を旧実装が 0 件と読み、採点が投資 0 円になった
+ACTUAL_MD = """## 買い目（参考）
+
+### 三連複 1,000円（推奨）
+| # | 組み合わせ | 金額 |
+|---|---|---|
+| 1 | 8-13-3 | 100円 |
+| 2 | 8-13-4 | 100円 |
+
+### 馬連ボックス 1,000円（**実購入**）
+| # | 組み合わせ | 金額 |
+|---|---|---|
+| 1 | 3-8 | 100円 |
+| 2 | 8-13 | 100円 |
+
+**決着パターン別の払戻**:
+| 1-3着の組合せ | 的中する買い目 | 払戻 |
+|---|---|---|
+| 1・8・13 | 8-13 | 500 円 |
+"""
+
+
+def test_parse_bets_reads_columns_by_header_and_prefers_actual():
+    bets = parse_bets(ACTUAL_MD)
+    assert [(b.bet_type, b.combination, b.amount) for b in bets] == [
+        ("umaren", "3-8", 100),
+        ("umaren", "8-13", 100),
+    ]
+
+
+def test_parse_bets_without_actual_marker_returns_all():
+    md = ACTUAL_MD.replace("**実購入**", "代替案")
+    assert [b.combination for b in parse_bets(md)] == ["3-8-13", "4-8-13", "3-8", "8-13"]
+
+
+def test_parse_bets_ignores_tables_without_stake_column():
+    md = """### ワイド 900円
+| 1-3着の組合せ | 的中する買い目 | 払戻 |
+|---|---|---|
+| 1・15・11 | 1-15, 11-15 | 1,940 円 |
+"""
+    assert parse_bets(md) == []

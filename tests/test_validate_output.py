@@ -201,3 +201,55 @@ def test_pace_without_front_runner_warns():
 def test_pace_with_front_runner_no_warn():
     text = "## 想定ペース・展開\n想定ペースは Sl。11番が逃げ、2番が番手。\n\n## 買い目（参考）\n| 買い目 | 投資額 |\n|---|---|\n| 1-2 | 100 円 |\n"
     assert validate_output._check_front_runner_named(text) == []
+
+
+def test_unscoreable_bet_table_is_error():
+    # 2026秋華賞: 採点器が読めない買い目表は、採点が黙って投資 0 円になる
+    md = "## 買い目（参考）\n\n### 馬連 1,000円\n| # | 組 | 金 |\n|---|---|---|\n| 1 | 3-8 | 百 |\n"
+    msgs = [v.message for v in validate_output._check_bets_scoreable(md) if v.severity == "error"]
+    assert any("採点器" in m for m in msgs)
+
+
+def test_scoreable_bet_table_passes():
+    md = (
+        "## 買い目（参考）\n\n### 馬連 200円\n| 買い目 | 推定オッズ | 投資額 | 想定払戻 |\n"
+        "|---|---|---|---|\n| 3-8 | 5倍 | 100 円 | 500 円 |\n| 8-13 | 4倍 | 100 円 | 400 円 |\n"
+    )
+    assert validate_output._check_bets_scoreable(md) == []
+
+
+_SUMMARY = (
+    "## 全頭評価サマリ\n"
+    "| 馬番 | 馬名 | 想定人気 | pedigree | track | race-context | devils | 総合 | 選定 | キー論点 |\n"
+    "|---|---|---|---|---|---|---|---|---|---|\n"
+    "| 1 | エー | 7 (30.9) | 0 | 0 | +2 | +2 | +1 | - | {key1} |\n"
+    "| 3 | シー | 4 (14.9) | 0 | 0 | 0 | 0 | +2 | ○ | x |\n"
+    "| 4 | ディー | 6 (24.6) | 0 | 0 | 0 | 0 | +2 | ▲ | x |\n"
+    "| 8 | エイト | 1 (1.4) | 0 | 0 | 0 | 0 | +4 | ◎ | x |\n"
+)
+
+
+def test_positive_unmarked_warns_unless_ev_stated():
+    # 2026秋華賞: 総合+1・無印の 1 ギャラボーグが2着
+    md = _SUMMARY.format(key1="休み明け＝割引")
+    assert any("無印" in v.message for v in validate_output._check_positive_unmarked(md))
+    md_ev = _SUMMARY.format(key1="EV 0.4 で閾値割れ")
+    assert validate_output._check_positive_unmarked(md_ev) == []
+
+
+def _bets(rows):
+    body = "".join(f"| {c} | - | 100 円 | - |\n" for c in rows)
+    return "\n## 買い目（参考）\n\n### 馬連 1,000円\n| 買い目 | 推定オッズ | 投資額 | 想定払戻 |\n|---|---|---|---|\n" + body
+
+
+def test_box_with_heavy_favorite_warns():
+    md = _SUMMARY.format(key1="x") + _bets(["3-4", "3-8", "4-8"])  # 3点中1点が◎抜き → 半数未満
+    assert validate_output._check_box_with_heavy_favorite(md) == []
+    md = _SUMMARY.format(key1="x") + _bets(["3-4", "1-3", "4-8", "1-4"])  # 4点中3点が◎抜き
+    assert any("◎8" in v.message for v in validate_output._check_box_with_heavy_favorite(md))
+
+
+def test_box_check_ignores_axis_flow():
+    # 2026神戸新聞杯: 「軸1 — 相手5頭BOX」と書いた1頭軸流しは全点◎入り → warn しない
+    md = _SUMMARY.format(key1="x") + _bets(["3-8", "4-8", "1-8"])
+    assert validate_output._check_box_with_heavy_favorite(md) == []
