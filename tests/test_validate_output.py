@@ -253,3 +253,23 @@ def test_box_check_ignores_axis_flow():
     # 2026神戸新聞杯: 「軸1 — 相手5頭BOX」と書いた1頭軸流しは全点◎入り → warn しない
     md = _SUMMARY.format(key1="x") + _bets(["3-8", "4-8", "1-8"])
     assert validate_output._check_box_with_heavy_favorite(md) == []
+
+
+def _judgement(conf):
+    return f"\n## 統合判断\n- ◎ 8: 本命\n- **確信度: {conf}**\n"
+
+
+def test_pairs_all_share_axis_warns_when_confidence_low():
+    # 2026菊花賞: ◎8(1.8倍)が14着。2頭券20点すべてが8軸で、○▲▽の3頭で決着したのに0円
+    md = _SUMMARY.format(key1="x") + _judgement(3) + _bets(["3-8", "4-8", "1-8", "2-8", "5-8"])
+    msgs = [v.message for v in validate_output._check_pairs_all_share_axis(md)]
+    assert any("すべてが 8 を含む" in m for m in msgs)
+
+
+def test_pairs_all_share_axis_silent_when_hedge_exists_or_confident():
+    md = _SUMMARY.format(key1="x") + _judgement(3) + _bets(["3-8", "4-8", "1-8", "2-8", "3-4"])
+    assert validate_output._check_pairs_all_share_axis(md) == []  # ◎抜きの 3-4 が1点ある
+    md = _SUMMARY.format(key1="x") + _judgement(4) + _bets(["3-8", "4-8", "1-8", "2-8", "5-8"])
+    assert validate_output._check_pairs_all_share_axis(md) == []  # 確信度4以上は対象外
+    md = _SUMMARY.format(key1="x") + _judgement(3) + _bets(["3-8", "4-8"])
+    assert validate_output._check_pairs_all_share_axis(md) == []  # 4点未満は対象外

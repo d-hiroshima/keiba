@@ -485,6 +485,56 @@ def _check_marked_horse_only_in_trio(text: str) -> list[Violation]:
     return out
 
 
+def _integrated_confidence(text: str) -> int | None:
+    """統合判断セクションの「確信度: N」を読む。無ければ None。"""
+    idx = text.find("## 統合判断")
+    if idx < 0:
+        return None
+    end = re.search(r"^## ", text[idx + 3:], re.MULTILINE)
+    sec = text[idx: idx + 3 + end.start()] if end else text[idx:]
+    m = re.search(r"確信度[:：]\s*\**\s*(\d)", sec)
+    return int(m.group(1)) if m else None
+
+
+def _check_pairs_all_share_axis(text: str) -> list[Violation]:
+    """2頭券の全点が同じ1頭（◎）を含み、統合の確信度が3以下なら warn [2026菊花賞反省]。
+
+    ◎が馬券外になる「全滅シナリオ」を自分で書きながら、保険も◎軸の人気サイド（例: 馬連◎-▲）
+    にしたため、◎14着で20点全滅した。◎を含まない2頭券（○-▲ 等）が0点だと、
+    ◎が飛ぶシナリオの保険が存在しない。
+    """
+    out: list[Violation] = []
+    if "買い目" not in text:
+        return out
+    conf = _integrated_confidence(text)
+    if conf is None or conf > 3:
+        return out
+    idx = text.find("## 買い目")
+    pairs: list[set[int]] = []
+    for header, rows in _iter_tables(text[idx:] if idx >= 0 else text):
+        if not any("買い目" in h or "組合せ" in h or "組み合わせ" in h for h in header):
+            continue
+        for row in rows:
+            if not row or "合計" in row[0]:
+                continue
+            for combo in re.findall(r"\d+(?:-\d+)+", row[0]):
+                nums = {int(n) for n in combo.split("-")}
+                if len(nums) == 2:
+                    pairs.append(nums)
+    if len(pairs) < 4:
+        return out
+    common = set.intersection(*pairs)
+    if len(common) == 1:
+        axis = next(iter(common))
+        out.append(Violation(
+            "warn",
+            f"2頭券 {len(pairs)} 点すべてが {axis} を含む（確信度 {conf}）。{axis} が馬券外なら全滅。"
+            f"◎軸の人気サイド押さえは保険にならない。◎を含まない2頭券（○-▲ 等）を"
+            "点数の 10-20% 入れる [2026菊花賞反省]",
+        ))
+    return out
+
+
 def _summary_rows(text: str):
     """全頭評価サマリ表を (馬番, 想定人気セル, 総合, 選定, キー論点) で列挙。表が無ければ空。"""
     for header, rows in _iter_tables(text):
@@ -580,6 +630,7 @@ def _check_analysis_pitfalls(text: str, target_type: str) -> list[Violation]:
         out.extend(_check_front_runner_named(text))
         out.extend(_check_positive_unmarked(text))
         out.extend(_check_box_with_heavy_favorite(text))
+        out.extend(_check_pairs_all_share_axis(text))
     if target_type in ("integrated", "track", "pedigree", "macro-scout"):
         out.extend(_check_weight_threshold(text))
     return out

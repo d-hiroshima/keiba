@@ -16,6 +16,8 @@ description: 終了したレースの予想を採点し、教訓を抽出する�
    python3 scripts/fetch_races.py <race_id>
    ```
    ContentNotReadyError（未確定）ならレース前なので中断。
+   **通過順（`results.passing_order`）が空なら、結果ページにまだ未掲載**（確定直後に多い）。翌日以降に
+   `python3 scripts/fetch_results.py --force <race_id>` で再取得すると入る（2026 秋華賞で確認）。展開シナリオの事後検証に使う。
 3. **機械採点**:
    ```
    python3 scripts/score_prediction.py predictions/<race_id>-*.md --append
