@@ -36,6 +36,11 @@ _UA = (
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "cache"
 _MIN_INTERVAL = 2.0  # 連続ライブ取得の最小間隔（秒）
 _last_fetch = 0.0
+# 一時的な失敗の再試行（タイムアウト・接続エラー・429・5xx のみ。403/404 は再試行しない）
+_MAX_ATTEMPTS = 3
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_RETRY_BASE = 4.0  # 秒。4 → 8 の指数バックオフ
+_MAX_RETRY_WAIT = 30.0
 
 # 場コード（COURSE_CODE_MAP）と parse_race_id は db.py を単一情報源として利用する。
 # 「3回京都4」等の日本語場名 → 英語キー
@@ -76,6 +81,13 @@ def _cache_path(url: str) -> Path:
     return CACHE_DIR / f"{h}.html"
 
 
+def _retry_delay(attempt: int, retry_after: str | None = None) -> float:
+    """再試行までの待ち秒数。Retry-After（秒）があれば上限付きで尊重、なければ指数バックオフ。"""
+    if retry_after and retry_after.isdigit():
+        return min(float(retry_after), _MAX_RETRY_WAIT)
+    return min(_RETRY_BASE * (2 ** attempt), _MAX_RETRY_WAIT)
+
+
 def get_html(url: str, max_age_hours: float = 24.0, force: bool = False) -> str:
     """URL を取得。キャッシュが新しければ再利用。force でキャッシュ無視。
 
@@ -91,12 +103,26 @@ def get_html(url: str, max_age_hours: float = 24.0, force: bool = False) -> str:
             if not _looks_not_ready(url, cached):
                 return cached
 
-    # 礼儀: 連続ライブ取得の間隔を空ける
-    wait = _MIN_INTERVAL - (time.time() - _last_fetch)
-    if wait > 0:
-        time.sleep(wait)
-    resp = requests.get(url, headers={"User-Agent": _UA}, timeout=20)
-    _last_fetch = time.time()
+    for attempt in range(_MAX_ATTEMPTS):
+        # 礼儀: 連続ライブ取得の間隔を空ける
+        wait = _MIN_INTERVAL - (time.time() - _last_fetch)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            resp = requests.get(url, headers={"User-Agent": _UA}, timeout=20)
+        except (requests.Timeout, requests.ConnectionError):
+            _last_fetch = time.time()
+            if attempt + 1 == _MAX_ATTEMPTS:
+                raise
+            time.sleep(_retry_delay(attempt))
+            continue
+        _last_fetch = time.time()
+        # 一時的な失敗（429/5xx）だけ再試行する。403/404 は再試行しても変わらない
+        # （ブロック・URL 誤り）ので即座に失敗させ、呼び出し側で別ソースに切り替える
+        if resp.status_code in _RETRY_STATUS and attempt + 1 < _MAX_ATTEMPTS:
+            time.sleep(_retry_delay(attempt, resp.headers.get("Retry-After")))
+            continue
+        break
     resp.raise_for_status()
     # keibalab は UTF-8 固定。apparent_encoding は誤判定して文字化けキャッシュを
     # 作ることがある（latin-1 と誤認した実績あり）ため使わない
