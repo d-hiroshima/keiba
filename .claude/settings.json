@@ -8,10 +8,21 @@
       "Bash(python scripts/fetch_results.py:*)",
       "Bash(python scripts/fetch_pedigree.py:*)",
       "Bash(python scripts/import_jravan_csv.py:*)",
-      "Bash(python scripts/db.py)",
+      "Bash(python scripts/db.py:*)",
+      "Bash(python scripts/validate_output.py:*)",
+      "Bash(python scripts/score_prediction.py:*)",
       "Bash(python -m scripts.*:*)",
+      "Bash(python3 scripts/fetch_races.py:*)",
+      "Bash(python3 scripts/fetch_results.py:*)",
+      "Bash(python3 scripts/fetch_pedigree.py:*)",
+      "Bash(python3 scripts/import_jravan_csv.py:*)",
+      "Bash(python3 scripts/db.py:*)",
+      "Bash(python3 scripts/validate_output.py:*)",
+      "Bash(python3 scripts/score_prediction.py:*)",
+      "Bash(python3 -m scripts.*:*)",
+      "Bash(TZ=Asia/Tokyo date:*)",
       "Bash(pip install -r requirements.txt)",
-      "Bash(sqlite3 data/race.db:*)"
+      "Bash(pip3 install --user --break-system-packages -r requirements.txt)"
     ],
     "deny": []
   }

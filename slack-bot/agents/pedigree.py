@@ -35,7 +35,8 @@ def run(input_data: dict[str, Any]) -> dict[str, Any]:
     TODO Phase 3:
     1. load_agent(AGENT_NAME) で system_prompt を取得
     2. input_data から user_message を組み立てる（出走馬一覧、コース・距離など）
-    3. Anthropic API（claude-opus-4-7）で呼び出し、prompt caching を有効化
+    3. Anthropic API（ANTHROPIC_MODEL、既定 claude-opus-5）で呼び出し、prompt caching を有効化
+       （現行世代は thinking 既定有効。temperature/top_p/budget_tokens は送らない）
     4. 出力フォーマット規約（強気度・確信度・根拠・反証条件）に沿ってパース
     """
     agent_meta = load_agent(AGENT_NAME)

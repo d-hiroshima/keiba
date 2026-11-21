@@ -10,7 +10,7 @@ description: Agent Teams を生成して、レース予想を多視点で議論�
 ## 前提
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 有効化済み（`.claude/settings.json`）
 - Claude Code v2.1.32+
-- レース DB が古い場合は事前に `python scripts/fetch_races.py <race_id>` を推奨
+- レース DB が古い場合は事前に `python3 scripts/fetch_races.py <race_id>` を推奨
 
 ## チーム編成（4メンバー）
 

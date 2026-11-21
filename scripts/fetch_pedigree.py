@@ -8,9 +8,9 @@
   → 先に fetch_results.py で産駒の戦績を蓄積しておくほど精度が上がる（DB が活きる設計）。
 
 使用例:
-  python scripts/fetch_pedigree.py 2020103060
-  python scripts/fetch_pedigree.py --race 202605030811   # レース出走馬の血統を一括取得
-  python scripts/fetch_pedigree.py --sire-stats 11202426  # ローカルデータから産駒成績集計
+  python3 scripts/fetch_pedigree.py 2020103060
+  python3 scripts/fetch_pedigree.py --race 202605030811   # レース出走馬の血統を一括取得
+  python3 scripts/fetch_pedigree.py --sire-stats 11202426  # ローカルデータから産駒成績集計
 """
 
 from __future__ import annotations

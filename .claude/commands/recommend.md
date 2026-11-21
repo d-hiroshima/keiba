@@ -7,7 +7,7 @@ description: Agent Teams を組んで「今日／週末買うべきレース」�
 > **前提**:
 > - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 有効化済み（`.claude/settings.json`）
 > - Claude Code v2.1.32+
-> - レース DB が古い場合、事前に `python scripts/fetch_races.py <race_id>...`（対象レースを明示）の実行を提案
+> - レース DB が古い場合、事前に `python3 scripts/fetch_races.py <race_id>...`（対象レースを明示）の実行を提案
 >
 > **コスト警告**: `/analyze` の数倍のトークンを使用。直前情報の WebFetch が多発。土曜朝・日曜朝の利用想定。
 
