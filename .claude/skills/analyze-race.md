@@ -16,6 +16,9 @@ description: 個別レースの総合予想を実施するスキル。race_id �
    - `python3 scripts/fetch_races.py <race_id>` を実行（出走馬の馬番・斤量・騎手など出馬投票後の確定情報）
    - 出走馬の血統データが古ければ `python3 scripts/fetch_pedigree.py --race <race_id>`
    - 出走馬の過去走が古ければ `python3 scripts/fetch_results.py --horses-from-race <race_id>`
+4.5 **海外遠征帰りの確認**: `fetch_results.py` は海外戦を取り込まない。DB の最終出走から3ヶ月以上空いている馬は、
+   scout に「その間の海外出走の有無と着順」を先に確認させ、**他エージェントを起動する前に**対象馬リストへ注記する
+   （2026 マイルCS: 4 シックスペンスの前走は仏 GI 10着だったが、並列起動した3体が前走を安田記念1着として評価した。18着）
 5. **揮発データは取得しない**（オッズ・馬体重・馬場発表・天候は macro-scout がステップ3で WebFetch する）
 5.5 **海外レース（JRA 海外発売）の場合**: keibalab の 12桁 race_id と `fetch_*.py` は対象外。
    - **擬似 race_id** は `YYYYMMDD + 99 + R` とする（例: `202610049905`）。データはすべて WebFetch で取る

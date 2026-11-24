@@ -599,6 +599,39 @@ def _check_box_with_heavy_favorite(text: str) -> list[Violation]:
     return []
 
 
+def _check_marked_favorite_split_across_bet_types(text: str) -> list[Violation]:
+    """印付きの5番人気以内が、2頭券の券種の片方にしか入っていなければ warn [2026マイルCS反省]。
+
+    券種ごとに別の BOX・フォーメーションを組むと、「来るなら上位」と見た馬を馬連だけに、
+    「3着内向き」と見た馬をワイドだけに入れがち。2026 マイルCS: △1 エルデナリ（4人気）を
+    馬連BOXだけに入れ 1着。ワイド 1-2 1,340円・1-14 890円を取り逃した（天皇賞秋に続き n=2）。
+    """
+    from score_prediction import parse_bets  # 循環 import 回避のため遅延
+
+    by_type: dict[str, set[int]] = {}
+    for b in parse_bets(text):
+        nums = b.combination.split("-")
+        if len(nums) == 2 and all(n.isdigit() for n in nums):
+            by_type.setdefault(b.bet_type, set()).update(int(n) for n in nums)
+    if len(by_type) < 2:
+        return []
+    split: list[str] = []
+    for no, pop_cell, _, sel, _ in _summary_rows(text):
+        m = re.match(r"\s*(\d+)", pop_cell)
+        if not (m and int(m.group(1)) <= 5 and sel[:1] in ("◎", "○", "▲", "△", "▽")):
+            continue
+        held = sorted(t for t, horses in by_type.items() if no in horses)
+        if held and len(held) < len(by_type):
+            split.append(f"{sel[0]}{no}（{m.group(1)}人気、{'/'.join(held)} のみ）")
+    if not split:
+        return []
+    return [Violation(
+        "warn",
+        f"印付きの5番人気以内が券種の片方にしか入っていない: {' / '.join(split)}。"
+        "券種で役割を分けず両方に入れる（wide-strategy.md §6-5 の9・10）[2026マイルCS反省]",
+    )]
+
+
 def _check_front_runner_named(text: str) -> list[Violation]:
     """逃げ馬候補・隊列への言及が無ければ warn [2026オールカマー反省]。"""
     out: list[Violation] = []
@@ -631,6 +664,7 @@ def _check_analysis_pitfalls(text: str, target_type: str) -> list[Violation]:
         out.extend(_check_positive_unmarked(text))
         out.extend(_check_box_with_heavy_favorite(text))
         out.extend(_check_pairs_all_share_axis(text))
+        out.extend(_check_marked_favorite_split_across_bet_types(text))
     if target_type in ("integrated", "track", "pedigree", "macro-scout"):
         out.extend(_check_weight_threshold(text))
     return out

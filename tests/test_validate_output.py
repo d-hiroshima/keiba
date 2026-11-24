@@ -273,3 +273,27 @@ def test_pairs_all_share_axis_silent_when_hedge_exists_or_confident():
     assert validate_output._check_pairs_all_share_axis(md) == []  # 確信度4以上は対象外
     md = _SUMMARY.format(key1="x") + _judgement(3) + _bets(["3-8", "4-8"])
     assert validate_output._check_pairs_all_share_axis(md) == []  # 4点未満は対象外
+
+
+def _two_types(wide_rows, umaren_rows):
+    head = "| 買い目 | 推定オッズ | 投資額 | 想定払戻 |\n|---|---|---|---|\n"
+    w = "".join(f"| {c} | - | 100 円 | - |\n" for c in wide_rows)
+    u = "".join(f"| {c} | - | 100 円 | - |\n" for c in umaren_rows)
+    return f"\n## 買い目（参考）\n\n### ワイド 1,000円\n{head}{w}\n### 馬連 1,000円\n{head}{u}"
+
+
+def test_marked_favorite_split_across_bet_types_warns():
+    # 2026マイルCS: △1（4人気）を馬連BOXだけに入れ 1着。ワイド 1-2 / 1-14 を取り逃した
+    md = _SUMMARY.format(key1="x") + _two_types(["4-8"], ["3-8", "4-8"])  # ○3（4人気）が馬連のみ
+    msgs = [v.message for v in validate_output._check_marked_favorite_split_across_bet_types(md)]
+    assert any("○3" in m and "umaren" in m for m in msgs)
+
+
+def test_marked_favorite_split_silent_when_in_both_or_single_type():
+    md = _SUMMARY.format(key1="x") + _two_types(["3-8", "4-8"], ["3-8", "4-8"])
+    assert validate_output._check_marked_favorite_split_across_bet_types(md) == []
+    # ▲4 は6番人気なので片方だけでも対象外
+    md = _SUMMARY.format(key1="x") + _two_types(["3-8"], ["3-8", "4-8"])
+    assert validate_output._check_marked_favorite_split_across_bet_types(md) == []
+    md = _SUMMARY.format(key1="x") + _bets(["3-8", "4-8"])  # 券種が1つだけ
+    assert validate_output._check_marked_favorite_split_across_bet_types(md) == []
